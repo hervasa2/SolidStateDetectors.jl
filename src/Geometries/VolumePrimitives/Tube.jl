@@ -3,8 +3,13 @@ struct Tube{T} <: AbstractVolumePrimitive{T, 3} ## Only upright Tubes at the mom
     φ_interval::AbstractInterval{T}
     z_interval::AbstractInterval{T}
     translate::Union{CartesianVector{T},Missing}
+    rotate::Union{AbstractMatrix{T},Missing}
+    inv_rotate::Union{AbstractMatrix{T},Missing}
 end
 
+function Tube{T}( r_interval::AbstractInterval{T}, φ_interval::AbstractInterval{T}, z_interval::AbstractInterval{T}, translate::Union{CartesianVector{T},Missing}, rotate::Rotation{3,T} ) where {T}
+    Tube{T}(r_interval, φ_interval, z_interval, translate, rotate, inv(rotate))
+end
 
 function Tube{T}(dict::Dict{Any, Any}, inputunit_dict::Dict{String,Unitful.Units})::Tube{T} where {T <: SSDFloat}
 
@@ -28,10 +33,10 @@ function Tube{T}(dict::Dict{Any, Any}, inputunit_dict::Dict{String,Unitful.Units
     else
         @warn "please specify a height of the Tube 'h'"
     end
-    
-    φ_interval =  if haskey(dict, "phi") 
-        Interval(geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["from"]) * inputunit_dict["angle"])))), 
-                 geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["to"]) * inputunit_dict["angle"])))))                      
+
+    φ_interval =  if haskey(dict, "phi")
+        Interval(geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["from"]) * inputunit_dict["angle"])))),
+                 geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["to"]) * inputunit_dict["angle"])))))
     else
         Interval(T(0), geom_round(T(2π)))
     end
@@ -56,12 +61,14 @@ end
 
 function in(point::CartesianPoint{T}, tube::Tube{T})::Bool where {T <: SSDFloat}
     (ismissing(tube.translate) || tube.translate == CartesianVector{T}(0.0,0.0,0.0)) ? nothing : point -= tube.translate
+    (ismissing(tube.rotate) || tube.rotate == one(RotMatrix{3, T})) ? nothing : point = tube.inv_rotate*point
     point = convert(CylindricalPoint,point)
     return (point.r in tube.r_interval && point.φ in tube.φ_interval && point.z in tube.z_interval)
 end
 
 function in(point::CylindricalPoint{T}, tube::Tube{T})::Bool where {T <: SSDFloat}
     (ismissing(tube.translate) || tube.translate == CartesianVector{T}(0.0,0.0,0.0)) ? nothing  : point = CylindricalPoint(CartesianPoint(point)-tube.translate)
+    (ismissing(tube.rotate) || tube.rotate == one(RotMatrix{3, T})) ? nothing : point = CylindricalPoint(tube.inv_rotate*CartesianPoint(point))
     return (point.r in tube.r_interval && point.φ in tube.φ_interval && point.z in tube.z_interval)
 end
 
@@ -95,6 +102,7 @@ function sample(c::Tube{T}, stepsize::Vector{T}) where {T <: SSDFloat}
             end
         end
     end
+    ismissing(c.rotate) ? nothing : samples = map(x -> CylindricalPoint(c.rotate*CartesianPoint(x)), samples)
     ismissing(c.translate) ? nothing : samples = map(x -> CylindricalPoint(CartesianPoint(x) + c.translate), samples)
     return samples
 end
