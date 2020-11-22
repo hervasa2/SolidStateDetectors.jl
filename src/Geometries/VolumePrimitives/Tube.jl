@@ -1,4 +1,4 @@
-struct Tube{T} <: AbstractVolumePrimitive{T, 3} ## Only upright Tubes at the moment
+struct Tube{T} <: AbstractVolumePrimitive{T, 3}
     r_interval::AbstractInterval{T}
     φ_interval::AbstractInterval{T}
     z_interval::AbstractInterval{T}
@@ -7,51 +7,90 @@ struct Tube{T} <: AbstractVolumePrimitive{T, 3} ## Only upright Tubes at the mom
     inv_rotate::Union{AbstractMatrix{T},Missing}
 end
 
+function Tube{T}( r_interval::AbstractInterval{T}, φ_interval::AbstractInterval{T}, z_interval::AbstractInterval{T}, translate::Union{CartesianVector{T},Missing} ) where {T}
+    Tube{T}(r_interval, φ_interval, z_interval, translate, missing, missing)
+end
+
 function Tube{T}( r_interval::AbstractInterval{T}, φ_interval::AbstractInterval{T}, z_interval::AbstractInterval{T}, translate::Union{CartesianVector{T},Missing}, rotate::Rotation{3,T} ) where {T}
     Tube{T}(r_interval, φ_interval, z_interval, translate, rotate, inv(rotate))
 end
 
 function Tube{T}(dict::Dict{Any, Any}, inputunit_dict::Dict{String,Unitful.Units})::Tube{T} where {T <: SSDFloat}
 
-    z_offset::T = 0.0
     if haskey(dict, "translate")
         translate = CartesianVector{T}( haskey(dict["translate"],"x") ? geom_round(ustrip(uconvert(u"m", T(dict["translate"]["x"]) * inputunit_dict["length"] ))) : T(0),
                                         haskey(dict["translate"],"y") ? geom_round(ustrip(uconvert(u"m", T(dict["translate"]["y"]) * inputunit_dict["length"] ))) : T(0),
                                         haskey(dict["translate"],"z") ? geom_round(ustrip(uconvert(u"m", T(dict["translate"]["z"]) * inputunit_dict["length"] ))) : T(0))
-        if translate[1] == T(0.0) && translate[2] == T(0.0)
-            translate = missing
-            z_offset = geom_round(ustrip(uconvert(u"m", T(dict["translate"]["z"]) * inputunit_dict["length"] )))
-        end
     else
         translate = missing
     end
 
-    if haskey(dict,"h")
-         zStart, zStop = z_offset, geom_round(z_offset + ustrip(uconvert(u"m", T(dict["h"]) * inputunit_dict["length"] )))
+    if haskey(dict, "rotate")
+        rotarray = []
+        order = Array{Int32}([])
+        if haskey(dict["rotate"], "x")
+            if haskey(dict["rotate"]["x"], "angle")
+                push!(rotarray, RotX{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["x"]["angle"]) * inputunit_dict["angle"])))))
+                haskey(dict["rotate"]["x"], "order") ? push!(order, Int32(dict["rotate"]["x"]["order"])) : nothing
+            else
+                push!(rotarray, RotX{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["x"]) * inputunit_dict["angle"])))))
+            end
+        end
+        if haskey(dict["rotate"], "y")
+            if haskey(dict["rotate"]["y"], "angle")
+                push!(rotarray, RotY{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["y"]["angle"]) * inputunit_dict["angle"])))))
+                haskey(dict["rotate"]["y"], "order") ? push!(order, Int32(dict["rotate"]["y"]["order"])) : nothing
+            else
+                push!(rotarray, RotY{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["y"]) * inputunit_dict["angle"])))))
+            end
+        end
+        if haskey(dict["rotate"], "z")
+            if haskey(dict["rotate"]["z"], "angle")
+                push!(rotarray, RotZ{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["z"]["angle"]) * inputunit_dict["angle"])))))
+                haskey(dict["rotate"]["z"], "order") ? push!(order, Int32(dict["rotate"]["z"]["order"])) : nothing
+            else
+                push!(rotarray, RotZ{T}(geom_round(ustrip(uconvert(u"rad", T(dict["rotate"]["z"]) * inputunit_dict["angle"])))))
+            end
+        end
+        if length(rotarray) > 1 && length(rotarray) != length(order)
+            @warn "Order not specified for all rotations. Defauting to order x->y->z"
+            order = Array{Int32}([1,2,3])
+        end
+        rotate = length(rotarray) == 1 ? rotarray[1] : prod(rotarray[reverse(order)])
+        inv_rotate = inv(rotate)
+    else
+        rotate = missing
+        inv_rotate = missing
+    end
+
+    if haskey(dict, "h")
+        z_interval =  ClosedInterval{T}(T(0.0), geom_round(ustrip(uconvert(u"m", T(dict["h"]) * inputunit_dict["length"] ))))
     elseif haskey(dict,"z")
-         zStart, zStop =  geom_round(z_offset + ustrip(uconvert(u"m", T(dict["z"]["from"]) * inputunit_dict["length"] ))),  geom_round( z_offset + ustrip(uconvert(u"m", T(dict["z"]["to"]) * inputunit_dict["length"])))
+        z_interval =  ClosedInterval{T}(geom_round(z_offset + ustrip(uconvert(u"m", T(dict["z"]["from"]) * inputunit_dict["length"] ))),  geom_round( z_offset + ustrip(uconvert(u"m", T(dict["z"]["to"]) * inputunit_dict["length"]))))
     else
         @warn "please specify a height of the Tube 'h'"
     end
 
     φ_interval =  if haskey(dict, "phi")
-        Interval(geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["from"]) * inputunit_dict["angle"])))),
+        ClosedInterval{T}(geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["from"]) * inputunit_dict["angle"])))),
                  geom_round(T(ustrip(uconvert(u"rad", T(dict["phi"]["to"]) * inputunit_dict["angle"])))))
     else
-        Interval(T(0), geom_round(T(2π)))
+        ClosedInterval{T}(T(0), geom_round(T(2π)))
     end
 
     r_interval = if haskey(dict["r"], "from")
-        Interval(geom_round(ustrip(uconvert(u"m", T(dict["r"]["from"]) * inputunit_dict["length"] ))), geom_round(ustrip(uconvert(u"m", T(dict["r"]["to"]) * inputunit_dict["length"]))))
+        ClosedInterval{T}(geom_round(ustrip(uconvert(u"m", T(dict["r"]["from"]) * inputunit_dict["length"] ))), geom_round(ustrip(uconvert(u"m", T(dict["r"]["to"]) * inputunit_dict["length"]))))
     else
-        Interval(T(0), geom_round(ustrip(uconvert(u"m", T(dict["r"]) * inputunit_dict["length"]))))
+        ClosedInterval{T}(T(0), geom_round(ustrip(uconvert(u"m", T(dict["r"]) * inputunit_dict["length"]))))
     end
 
     return Tube{T}(
         r_interval,
         φ_interval,
-        Interval(zStart, zStop),
-        translate
+        z_interval,
+        translate,
+        rotate,
+        inv_rotate
     )
 end
 
@@ -111,8 +150,18 @@ function (+)(t::Tube{T}, translate::Union{CartesianVector{T},Missing})::Tube{T} 
     if ismissing(translate)
         return t
     elseif ismissing(t.translate)
-        return Tube(t.r_interval, t.φ_interval, t.z_interval, translate)
+        return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, translate, t.rotate, t.inv_rotate)
     else
-        return Tube(t.r_interval, t.φ_interval, t.z_interval, t.translate + translate)
+        return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate + translate, t.rotate, t.inv_rotate)
     end
  end
+
+ function (*)(t::Tube{T}, rotate::Union{CartesianVector{T},Missing})::Tube{T} where {T <: SSDFloat}
+     if ismissing(rotate)
+         return t
+     elseif ismissing(t.rotate)
+         return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate, rotate, inv(rotate))
+     else
+         return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate, rotate*t.rotate, inv(rotate*t.rotate))
+     end
+  end
