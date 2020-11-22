@@ -86,22 +86,17 @@ struct PartialCircle{T,N,S} <: AbstractLine{T,N,S}
     phiStop::T
     Translate::AbstractCoordinateVector{T,N,S}
     Rotate::AbstractMatrix{T}
+    Translate_ext::AbstractCoordinateVector{T,N,S}
+    Rotate_ext::AbstractMatrix{T}
 end
 
-function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::CartesianVector{T} = CartesianVector{T}([0,0,0]), Rotate::Rotation{3,T} = RotZ{T}(0)) where {T}
-    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, Translate, Rotate)
+function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::CartesianVector{T} = CartesianVector{T}([0,0,0]), Rotate::Rotation{3,T} = one(RotMatrix{3, T}), Translate_ext::CartesianVector{T} = CartesianVector{T}([0,0,0]), Rotate_ext::Rotation{3,T} = one(RotMatrix{3, T})) where {T}
+    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, Translate, Rotate, Translate_ext, Rotate_ext)
 end
 
-function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::CartesianVector{T}, Rotate::Missing) where {T}
-    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, Translate, RotZ{T}(0))
-end
 
-function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::Missing, Rotate::Rotation{3,T}) where {T}
-    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, CartesianVector{T}([0,0,0]), Rotate)
-end
-
-function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::Missing, Rotate::Missing) where {T}
-    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, CartesianVector{T}([0,0,0]),  RotZ{T}(0))
+function PartialCircle(r::T, phiStart::T, phiStop::T, Translate::Missing, Rotate::Missing, Translate_ext::Missing, Rotate_ext::Missing) where {T}
+    PartialCircle{T, 3, :cartesian}(r, phiStart, phiStop, CartesianVector{T}([0,0,0]), one(RotMatrix{3, T}), CartesianVector{T}([0,0,0]), one(RotMatrix{3, T}))
 end
 
 
@@ -124,7 +119,7 @@ end
     x::Vector{T} = pc.r .* cos.(phirange)
     y::Vector{T} = pc.r .* sin.(phirange)
     z::Vector{T} = map(phi -> 0.0, phirange)
-    points = map(p -> pc.Rotate*p + pc.Translate, CartesianPoint{T}.(x,y,z))
+    points = map(p -> pc.Rotate_ext*(pc.Rotate*p + pc.Translate) + pc.Translate_ext, CartesianPoint{T}.(x,y,z))
     points
 end
 

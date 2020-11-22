@@ -1,26 +1,27 @@
 
 function LineSegments(t::Tube{T})::Vector{AbstractLine{T,3,:cartesian}} where {T <: SSDFloat}
     ls = AbstractLine{T, 3, :cartesian}[]
-    translate::CartesianVector{T} = ismissing(t.translate) ? CartesianVector{T}([0, 0, 0]) : t.translate
+    translate_ext::CartesianVector{T} = ismissing(t.translate) ? CartesianVector{T}([0, 0, 0]) : t.translate
+    rotate_ext::AbstractMatrix{T} = ismissing(t.rotate) ? one(RotMatrix{3, T}) : t.rotate
     for r in (t.r_interval.left == 0 ? [t.r_interval.right] : [t.r_interval.left, t.r_interval.right])
         for z in [t.z_interval.left, t.z_interval.right]
-            push!(ls, PartialCircle(r, t.φ_interval.left, t.φ_interval.right, translate + CartesianVector{T}([0, 0, z])))
+            push!(ls, PartialCircle(r, t.φ_interval.left, t.φ_interval.right, CartesianVector{T}([0, 0, z]), one(RotMatrix{3, T}), translate_ext, rotate_ext))
         end
     end
     for r in [t.r_interval.left, t.r_interval.right]
         if r != 0
             for φ in ((t.φ_interval.right - t.φ_interval.left ≈ 2π) ? [t.φ_interval.left] : [t.φ_interval.left, t.φ_interval.right])
                 push!(ls, LineSegment(
-                    CartesianPoint{T}(r * cos(φ), r * sin(φ), t.z_interval.left) + translate,
-                    CartesianPoint{T}(r * cos(φ), r * sin(φ), t.z_interval.right) + translate))
+                    rotate_ext*CartesianPoint{T}(r * cos(φ), r * sin(φ), t.z_interval.left) + translate_ext,
+                    rotate_ext*CartesianPoint{T}(r * cos(φ), r * sin(φ), t.z_interval.right) + translate_ext))
             end
         end
     end
     for φ in ((t.φ_interval.right - t.φ_interval.left ≈ 2π) ? [] : [t.φ_interval.left, t.φ_interval.right])
         for z in [t.z_interval.left, t.z_interval.right]
             push!(ls, LineSegment(
-                CartesianPoint{T}(t.r_interval.left * cos(φ), t.r_interval.left * sin(φ), z) + translate,
-                CartesianPoint{T}(t.r_interval.right * cos(φ), t.r_interval.right * sin(φ), z) + translate))
+                rotate_ext*CartesianPoint{T}(t.r_interval.left * cos(φ), t.r_interval.left * sin(φ), z) + translate_ext,
+                rotate_ext*CartesianPoint{T}(t.r_interval.right * cos(φ), t.r_interval.right * sin(φ), z) + translate_ext))
         end
     end
     return ls

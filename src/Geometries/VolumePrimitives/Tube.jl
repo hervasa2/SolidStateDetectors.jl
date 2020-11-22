@@ -54,7 +54,7 @@ function Tube{T}(dict::Dict{Any, Any}, inputunit_dict::Dict{String,Unitful.Units
         end
         if length(rotarray) > 1 && length(rotarray) != length(order)
             @warn "Order not specified for all rotations. Defauting to order x->y->z"
-            order = Array{Int32}([1,2,3])
+            order = collect(Int32(1):Int32(length(rotarray)))
         end
         rotate = length(rotarray) == 1 ? rotarray[1] : prod(rotarray[reverse(order)])
         inv_rotate = inv(rotate)
@@ -155,13 +155,3 @@ function (+)(t::Tube{T}, translate::Union{CartesianVector{T},Missing})::Tube{T} 
         return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate + translate, t.rotate, t.inv_rotate)
     end
  end
-
- function (*)(t::Tube{T}, rotate::Union{CartesianVector{T},Missing})::Tube{T} where {T <: SSDFloat}
-     if ismissing(rotate)
-         return t
-     elseif ismissing(t.rotate)
-         return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate, rotate, inv(rotate))
-     else
-         return Tube{T}(t.r_interval, t.φ_interval, t.z_interval, t.translate, rotate*t.rotate, inv(rotate*t.rotate))
-     end
-  end
