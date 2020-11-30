@@ -33,7 +33,7 @@ end
 
 
 
-@recipe function f(ep::ElectricPotential{T,3,:cylindrical}; r = missing, φ = missing, z = missing, contours_equal_potential = false) where {T <: SSDFloat}
+@recipe function f(ep::ElectricPotential{T,3,:cylindrical}; r = missing, φ = missing, z = missing, contours_equal_potential = false, units = u"m") where {T <: SSDFloat}
 
     if !(ep.grid[2][end] - ep.grid[2][1] ≈ 2π) ep = get_2π_potential(ep, n_points_in_φ = 72) end
 
@@ -42,7 +42,7 @@ end
 
     seriescolor --> :viridis
     title --> "Electric Potential @ $(cross_section) = $(round(value,sigdigits=2))"*(cross_section == :φ ? "°" : "m")
-
+    units --> units
     ep, cross_section, idx, value, contours_equal_potential
 end
 
@@ -95,7 +95,8 @@ end
     pt, cross_section, idx, value
 end
 
-@recipe function f(sp::ScalarPotential{T,3,:cylindrical}, cross_section::Symbol, idx::Int, value::T, contours_equal_potential::Bool = false, full_det::Bool = false; resample = true) where {T <: SSDFloat}
+@recipe function f(sp::ScalarPotential{T,3,:cylindrical}, cross_section::Symbol, idx::Int, value::T, contours_equal_potential::Bool = false, full_det::Bool = false; resample = true, units = u"m") where {T <: SSDFloat}
+    conv_factor = T(ustrip(uconvert(units, 1u"m")))
     g::Grid{T, 3, :cylindrical} = sp.grid
     @series begin
         seriestype := :heatmap
@@ -103,19 +104,19 @@ end
         tick_direction --> :out
         if cross_section == :φ
             aspect_ratio --> 1
-            xguide --> "r / m"
-            yguide --> "z / m"
-            xlims --> (g.r[1],g.r[end])
-            ylims --> (g.z[1],g.z[end])
+            xguide --> string("r [", units, "]")
+            yguide --> string("z [", units, "]")
+            xlims --> (conv_factor*g.r[1], conv_factor*g.r[end])
+            ylims --> (conv_factor*g.z[1], conv_factor*g.z[end])
             gr_ext::Array{T,1} = midpoints(get_extended_ticks(g.r))
             gz_ext::Array{T,1} = midpoints(get_extended_ticks(g.z))
             if full_det == true
                 cross_section_dummy, idx_mirror, value_dummy = get_crosssection_idx_and_value(g, missing, value+180, missing)
                 extended_data =  cat(sp.data[end:-1:2, idx_mirror, :]', sp.data[:, idx, :]', dims = 2)
-                xlims := (-1*g.r[end],g.r[end])
-                vcat(-1 .* g.r[end:-1:2], g.r), g.z, extended_data
+                xlims := (-conv_factor*g.r[end],conv_factor*g.r[end])
+                vcat(-conv_factor .* g.r[end:-1:2], conv_factor .* g.r), conv_factor .* g.z, extended_data
              else
-                midpoints(gr_ext), midpoints(gz_ext), sp.data[:,idx,:]'
+                conv_factor .* midpoints(gr_ext), conv_factor .* midpoints(gz_ext), sp.data[:,idx,:]'
             end
         elseif cross_section == :r
             xguide --> "φ / °"

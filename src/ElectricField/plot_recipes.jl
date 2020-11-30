@@ -3,18 +3,19 @@
                     φ = missing,
                     z = missing,
                     contours_equal_potential=false,
-                    full_det = false ) where {T}
+                    full_det = false, units = u"m" ) where {T}
 
+    conv_factor = T(ustrip(uconvert(units, 1u"m")))
     g::Grid{T, 3, :cylindrical} = ef.grid
-    ef_magn  = norm.(ef)
+    ef_magn  = norm.(ef) ./ conv_factor
 
     seriescolor --> :inferno
     cross_section::Symbol, idx::Int, value::T = get_crosssection_idx_and_value(g, r, φ, z)
     cross_section != :r ? aspect_ratio --> 1 : nothing
 
     title --> "Electric Field (Magn.) @ $(cross_section) = $(round(value,sigdigits=2))"*(cross_section == :φ ? "°" : "m")
-    colorbar_title --> "Electric Field Strength in V / m"
-
+    colorbar_title --> string("Electric Field Strength [V/", units, "]")
+    units --> units
     ElectricPotential(ef_magn,g), cross_section, idx, value, contours_equal_potential, full_det
 
 end
