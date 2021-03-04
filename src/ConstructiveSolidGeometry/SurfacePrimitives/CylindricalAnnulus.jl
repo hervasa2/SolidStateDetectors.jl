@@ -40,8 +40,10 @@ CylindricalAnnulus(rMin, rMax, φMin, φMax, z) = CylindricalAnnulus(;rMin = rMi
 
 function CylindricalAnnulus(r::Real, z::Real)
     T = float(promote_type(typeof.((r, z))...))
-    CylindricalAnnulus(T, T(r), nothing, T(z), nothing)
+    CylindricalAnnulus(T, T(r), nothing, T(z))
 end
+
+get_surface_vector(a::CylindricalAnnulus{T}) where {T} = CartesianVector{T}(0,0,1)
 
 get_r_limits(a::CylindricalAnnulus{T, <:Union{T, AbstractInterval{T}}, <:Any}) where {T} =
     (_left_radial_interval(a.r), _right_radial_interval(a.r))
@@ -52,6 +54,34 @@ get_φ_limits(a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}) where {T} = (
 in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, Nothing}) where {T} = _eq_z(p, a.z) && _in_cyl_r(p, a.r)
 
 in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}) where {T} = _eq_z(p, a.z) && _in_φ(p, a.φ) && _in_cyl_r(p, a.r)
+
+function sample(a::CylindricalAnnulus{T}, step::Real) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    φMin::T, φMax::T, _ = get_φ_limits(a)
+    samples = [
+        CylindricalPoint{T}(r,φ,a.z)
+        for r in rMin:step:rMax
+        for φ in (r == 0 ? φMin : φMin:step/r:φMax)
+    ]
+end
+
+function sample(a::CylindricalAnnulus{T}, Nsamps::NTuple{3,Int}) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    φMin::T, φMax::T, _ = get_φ_limits(a)
+    samples = [
+        CylindricalPoint{T}(r,φ,a.z)
+        for r in (Nsamps[1] ≤ 1 ? rMin : range(rMin, rMax, length = Nsamps[1]))
+        for φ in (Nsamps[2] ≤ 1 ? φMin : range(φMin, φMax, length = Nsamps[2]))
+    ]
+end
+
+function get_midpoint(a::CylindricalAnnulus{T}) where {T}
+    φMin::T, φMax::T, _ = get_φ_limits(a)
+    rMin::T, rMax::T = get_r_limits(a)
+    sφMid::T, cφMid::T = sincos((φMax + φMin)/2)
+    rMid = (rMax + rMin)/2
+    CartesianPoint{T}(rMid*cφMid, rMid*sφMid, a.z)
+end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, a::CylindricalAnnulus{T, <:Any, Nothing})::T where {T}
     point = CylindricalPoint(point)
@@ -85,22 +115,12 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, a::CylindricalAn
     end
 end
 
-function sample(a::CylindricalAnnulus{T}, step::Real) where {T}
+function cut(a::CylindricalAnnulus{T}, val::Real, ::Val{:r}) where {T}
     rMin::T, rMax::T = get_r_limits(a)
     φMin::T, φMax::T, _ = get_φ_limits(a)
-    samples = [
-        CylindricalPoint{T}(r,φ,a.z)
-        for r in rMin:step:rMax
-        for φ in (r == 0 ? φMin : φMin:step/r:φMax)
-    ]
-end
-
-function sample(a::CylindricalAnnulus{T}, Nsamps::NTuple{3,Int}) where {T}
-    rMin::T, rMax::T = get_r_limits(a)
-    φMin::T, φMax::T, _ = get_φ_limits(a)
-    samples = [
-        CylindricalPoint{T}(r,φ,a.z)
-        for r in (Nsamps[1] ≤ 1 ? rMin : range(rMin, rMax, length = Nsamps[1]))
-        for φ in (Nsamps[2] ≤ 1 ? φMin : range(φMin, φMax, length = Nsamps[2]))
-    ]
+    if rMin < val < rMax
+        return [CylindricalAnnulus(rMin, T(val), φMin, φMax, a.z), CylindricalAnnulus(T(val), rMax, φMin, φMax, a.z)]
+    else
+        return [a]
+    end
 end

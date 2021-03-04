@@ -55,12 +55,15 @@ function sample(t::ToroidalAnnulus{T}, Nsamps::NTuple{3,Int}) where {T}
     ]
 end
 
-function distance_to_surface(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::T where {T}
-    point = CartesianPoint(point)
+function _transform_point_to_xy_plane_representation(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::CartesianPoint{T} where {T}
+    pct = CartesianPoint(point)
     r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
-    θMin::T, θMax::T, _ = get_θ_limits(t)
     sφ, cφ = sincos(t.φ)
-    tri = Triangle(CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, 0), CartesianPoint{T}((t.r_torus+r_tubeMax)*cφ, (t.r_torus+r_tubeMax)*sφ, 0), CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, r_tubeMax))
-    point = CartesianPoint{T}((get_planar_coordinates(point, tri).*norm.(get_spanning_vectors(tri)))...,distance_to_infinite_plane(point, tri))
-    distance_to_surface(point, CylindricalAnnulus(r_tubeMin, r_tubeMax, θMin, θMax, T(0)))
+    tri = Plane(T, CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, 0), CartesianPoint{T}((t.r_torus+r_tubeMax)*cφ, (t.r_torus+r_tubeMax)*sφ, 0), CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, r_tubeMax), nothing)
+    CartesianPoint{T}((get_planar_coordinates(pct, tri).*norm.(get_spanning_vectors(tri)))...,distance_to_infinite_plane(pct, tri))
+end
+
+function distance_to_surface(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::T where {T}
+    pct_transformed = _transform_point_to_xy_plane_representation(point, t)
+    distance_to_surface(pct_transformed, CylindricalAnnulus(T, t.r_tube, t.θ, T(0)))
 end

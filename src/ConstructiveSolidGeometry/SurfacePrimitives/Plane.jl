@@ -20,7 +20,7 @@ end
 
 Triangle(p1, p2, p3) = Triangle(;p1 = p1, p2 = p2, p3 = p3)
 
-get_vertices(tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} = [tri.p1, tri.p2, tri.p3]
+get_vertices(tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} = (tri.p1, tri.p2, tri.p3)
 
 get_spanning_vectors(plane::Plane{T}) where {T} = (CartesianVector{T}(plane.p2 - plane.p1), CartesianVector{T}(plane.p3 - plane.p1))
 
@@ -60,23 +60,6 @@ end
 in(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} = projection_in_triangle(point, tri) && on_infinite_plane(point, tri)
 #Order of checks makes no difference in performance in all tested cases
 
-function distance_to_line_segment(point::AbstractCoordinatePoint{T}, seg::Tuple{AbstractCoordinatePoint{T},AbstractCoordinatePoint{T}})::T where {T}
-    point = CartesianPoint(point)
-    seg = (CartesianPoint(seg[1]), CartesianPoint(seg[2]))
-    v12 = normalize(CartesianVector{T}(seg[2] - seg[1]))
-    v_point_1 = CartesianVector{T}(point - seg[1])
-    proj_on_v12 = dot(v12,v_point_1)
-    if geom_round(proj_on_v12) ≤ T(0)
-        return norm(seg[1] - point)
-    else
-        v_point_2 = CartesianVector{T}(point - seg[2])
-        if geom_round(dot(v12,v_point_2)) ≥ T(0)
-            return norm(seg[2] - point)
-        else
-            return sqrt(abs(dot(v_point_1,v_point_1) - proj_on_v12^2))
-        end
-    end
-end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing})::T where {T}
     point = CartesianPoint(point)
@@ -118,12 +101,13 @@ end
 
 function Quadrilateral(;p1 = CartesianPoint{Float32}(0,0,0), p2 = CartesianPoint{Float32}(1,0,0), p3 = CartesianPoint{Float32}(1,1,0), p4 = CartesianPoint{Float32}(0,1,0), p4_on_plane_check = true)
     T = float(promote_type(eltype.((p1, p2, p3, p4))...))
-    tri = Triangle(p1, p2, p3)
     #will return triangle if conditions are not met. Order of points matters, a continous non intersecting line needs to be drawn in p1->p2->p3->p4->p1
     if geom_round(p4) in [geom_round(p1), geom_round(p2), geom_round(p3)]
-        println("Identical vertex")
+        tri = Triangle(p1, p2, p3)
+        #println("Identical vertex")
         return tri
     elseif p4_on_plane_check
+        tri = Triangle(p1, p2, p3)
         if on_infinite_plane(p4, tri)
             if !projection_in_triangle(p4, tri)
                 v = CartesianVector{T}(p4 - p1)
@@ -149,7 +133,7 @@ Quadrilateral(p1, p2, p3, p4; p4_on_plane_check = true) = Quadrilateral(;p1 = p1
 Plane(p1, p2, p3, p4; p4_on_plane_check = true) = Quadrilateral(;p1 = p1, p2 = p2, p3 = p3, p4 = p4, p4_on_plane_check = p4_on_plane_check)
 Plane(p1, p2, p3; p4_on_plane_check = true) = Triangle(;p1 = p1, p2 = p2, p3 = p3)
 
-get_vertices(quad::Plane{T, CartesianPoint{T}, CartesianPoint{T}}) where {T} = [quad.p1, quad.p2, quad.p3, quad.p4]
+get_vertices(quad::Plane{T, CartesianPoint{T}, CartesianPoint{T}}) where {T} = (quad.p1, quad.p2, quad.p3, quad.p4)
 
 
 function decompose_into_tiangles(quad::Plane{T, CartesianPoint{T}, CartesianPoint{T}})::Tuple{Plane{T, CartesianPoint{T}, Nothing},Plane{T, CartesianPoint{T}, Nothing}} where {T}
@@ -162,7 +146,7 @@ function in(point::CartesianPoint{T}, quad::Plane{T, CartesianPoint{T}, Cartesia
     point in tri1 || point in tri2
 end
 
-function distance_to_surface(point::CartesianPoint{T}, quad::Plane{T, CartesianPoint{T}, CartesianPoint{T}})::T where {T}
+function distance_to_surface(point::AbstractCoordinatePoint{T}, quad::Plane{T, CartesianPoint{T}, CartesianPoint{T}})::T where {T}
     tri1, tri2 = decompose_into_tiangles(quad)
     min(distance_to_surface(point, tri1), distance_to_surface(point, tri2))
 end

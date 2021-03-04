@@ -1,7 +1,11 @@
+include("LineSegment.jl")
 include("Plane.jl")
 include("ConalPlane.jl")
 include("CylindricalAnnulus.jl")
 include("ConeMantle.jl")
 include("ToroidalAnnulus.jl")
 include("TorusMantle.jl")
-#include("Sphere.jl")
+include("CutSurfaces.jl")
+
+get_surface_vector(s::AbstractSurfacePrimitive, val::Real) = get_surface_vector(s)
+#return default if no method is available, some surface primitives need a val to return a normal cartesian vector (surface vector)

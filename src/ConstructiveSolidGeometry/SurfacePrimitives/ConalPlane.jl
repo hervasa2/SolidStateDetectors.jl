@@ -50,13 +50,45 @@ end
 function get_vertices(c::ConalPlane{T}) where {T}
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
-    [CartesianPoint{T}(rbotMin * cos(c.φ), rbotMin * sin(c.φ), zMin),
+    (CartesianPoint{T}(rbotMin * cos(c.φ), rbotMin * sin(c.φ), zMin),
     CartesianPoint{T}(rbotMax * cos(c.φ), rbotMax * sin(c.φ), zMin),
     CartesianPoint{T}(rtopMax * cos(c.φ), rtopMax * sin(c.φ), zMax),
-    CartesianPoint{T}(rtopMin * cos(c.φ), rtopMin * sin(c.φ), zMax)]
+    CartesianPoint{T}(rtopMin * cos(c.φ), rtopMin * sin(c.φ), zMax))
 end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConalPlane{T})::T where {T}
-    point = CartesianPoint(point)
-    distance_to_surface(point, Plane(unique(get_vertices(c))..., p4_on_plane_check = false))
+    rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    pcy = CylindricalPoint(point)
+    Δφ = pcy.φ - c.φ
+    d, r_on_plane = pcy.r .* sincos(Δφ)
+    if point.z ≥ zMax
+        if r_on_plane ≥ rtopMax
+            return hypot(d, point.z-zMax, r_on_plane-rtopMax)
+        elseif r_on_plane ≤ rtopMin
+            return hypot(d, point.z-zMax, rtopMin - r_on_plane)
+        else
+            return hypot(d, point.z-zMax)
+        end
+    elseif point.z ≤ zMin
+        if r_on_plane ≥ rbotMax
+            return hypot(d, zMin-point.z, r_on_plane-rbotMax)
+        elseif r_on_plane ≤ rtopMin
+            return hypot(d, zMin-point.z, rbotMin - r_on_plane)
+        else
+            return hypot(d, zMax-point.z)
+        end
+    else
+        r_at_z = get_r_at_z(c, point.z)
+        rMin  = _left_radial_interval(r_at_z)
+        rMax = _right_radial_interval(r_at_z)
+        if rMin ≤ r_on_plane ≤ rMax
+            return abs(d)
+        else
+            seg = r_on_plane ≥ rMax ? (SVector{2,T}(rbotMax,zMin),SVector{2,T}(rtopMax,zMax)) : (SVector{2,T}(rbotMin,zMin),SVector{2,T}(rtopMin,zMax))
+            point = SVector{2,T}(r_on_plane,point.z)
+            return sqrt(d^2 + distance_to_infinite_line_2D(point, seg)^2)
+        end
+    end
+    #distance_to_surface(point, Plane(unique(get_vertices(c))..., p4_on_plane_check = false))
 end

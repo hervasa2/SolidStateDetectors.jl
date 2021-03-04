@@ -40,6 +40,8 @@ module ConstructiveSolidGeometry
     include("CSG.jl")
     include("IO.jl")
     include("Decompose.jl")
+    include("CutSurfaces.jl")
+    include("DecomposedSurfaces.jl")
 
     # Plotting
     include("plotting/plotting.jl")

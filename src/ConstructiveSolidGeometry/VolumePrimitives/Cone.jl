@@ -118,8 +118,7 @@ end
 function get_decomposed_surfaces(c::Cone{T, <:Union{T, Tuple{T,T}}, Nothing, <:Any}) where {T}
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
-    surfaces = _get_decomposed_surfaces_cone(c, rbotMin, rbotMax, rtopMin, rtopMax, zMin, zMax)
-    unique(surfaces)
+    _get_decomposed_surfaces_cone(c, rbotMin, rbotMax, rtopMin, rtopMax, zMin, zMax)
 end
 
 function get_decomposed_surfaces(c::Cone{T, <:Union{<:AbstractInterval{T}, Tuple{I,I}}, Nothing, <:Any}) where {T, I<:AbstractInterval{T}}

@@ -52,6 +52,18 @@ function ConeMantle(rbot::R1, rtop::R2, height::H) where {R1<:Real, R2<:Real, H<
     ConeMantle( T, (T(rbot), T(rtop)), nothing, T(height)/2)
 end
 
+function get_surface_vector(c::ConeMantle{T})::CylindricalVector{T} where {T}
+    line = _get_2D_line_segment(c)
+    on_surf_vec = normalize(line[2]-line[1])
+    CylindricalVector{T}(on_surf_vec[2],0,-on_surf_vec[1])
+end
+
+function get_surface_vector(c::ConeMantle{T}, φ::Real)::CartesianVector{T} where {T}
+    n = get_surface_vector(c)
+    sφ::T, cφ::T = sincos(φ)
+    CartesianVector{T}(n[1]*cφ, n[1]*sφ, n[3])
+end
+
 get_r_at_z(c::ConeMantle{T}, z::Real) where {T} = _get_r_at_z(get_r_limits(c)..., c.z, z)
 
 get_r_limits(c::ConeMantle{T, T, <:Any, <:Any}) where {T} = (T(c.r), T(c.r))
@@ -67,6 +79,25 @@ in(p::AbstractCoordinatePoint, c::ConeMantle{<:Any, <:Any, Nothing, <:Any}) =
 
 in(p::AbstractCoordinatePoint, c::ConeMantle{<:Any, <:Any, <:AbstractInterval, <:Any}) =
     _in_z(p, c.z) && _in_φ(p, c.φ) && _eq_cyl_r(p, get_r_at_z(c, p.z))
+
+function _get_2D_line_segment(c::ConeMantle{T}) where {T}
+    rbot::T, rtop::T = get_r_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    SVector{2,T}(rbot,zMin), SVector{2,T}(rtop,zMax)
+end
+
+function _get_3D_line_segment(c::ConeMantle{T}, ::Type{Cartesian}, φ::Real) where {T}
+    rbot::T, rtop::T = get_r_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    sφ::T, cφ::T = sincos(φ)
+    CartesianPoint{T}(rbot*cφ,rbot*sφ,zMin), CartesianPoint{T}(rtop*cφ,rtop*sφ,zMax)
+end
+
+function _get_3D_line_segment(c::ConeMantle{T}, ::Type{Cylindrical}, φ::Real) where {T}
+    rbot::T, rtop::T = get_r_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    CylindricalPoint{T}(rbot,φ,zMin), CylindricalPoint{T}(rtop,φ,zMax)
+end
 
 function sample(c::ConeMantle{T}, step::Real) where {T}
     φMin::T, φMax::T, _ = get_φ_limits(c)
@@ -88,22 +119,39 @@ function sample(c::ConeMantle{T}, Nsamps::NTuple{3,Int}) where {T}
     ]
 end
 
+function get_midpoint(c::ConeMantle{T}) where {T}
+    φMin::T, φMax::T, _ = get_φ_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    sφMid::T, cφMid::T = sincos((φMax + φMin)/2)
+    zMid = (zMax + zMin)/2
+    rMid = get_r_at_z(c, zMid)
+    CartesianPoint{T}(rMid*cφMid, rMid*sφMid, zMid)
+end
+
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConeMantle{T, <:Any, Nothing, <:Any})::T where {T}
     pcy = CylindricalPoint(point)
-    rbot::T, rtop::T = get_r_limits(c)
-    zMin::T, zMax::T = get_z_limits(c)
-    distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), (CartesianPoint{T}(rbot,0,zMin),CartesianPoint{T}(rtop,0,zMax)))
+    distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), _get_3D_line_segment(c, Cartesian, 0))
 end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConeMantle{T, <:Any, <:AbstractInterval, <:Any})::T where {T}
     pcy = CylindricalPoint(point)
     φMin::T, φMax::T, _ = get_φ_limits(c)
-    rbot::T, rtop::T = get_r_limits(c)
-    zMin::T, zMax::T = get_z_limits(c)
     if _in_φ(pcy, c.φ)
-        return distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), (CartesianPoint{T}(rbot,0,zMin),CartesianPoint{T}(rtop,0,zMax)))
+        return distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), _get_3D_line_segment(c, Cartesian, 0))
     else
         φNear = Δ_φ(T(pcy.φ),φMin) ≤ Δ_φ(T(pcy.φ),φMax) ? φMin : φMax
-        return distance_to_line_segment(point, (CylindricalPoint{T}(rbot,φNear,zMin),CylindricalPoint{T}(rtop,φNear,zMax)))
+        return distance_to_line_segment(point, _get_3D_line_segment(c, Cylindrical, φNear))
+    end
+end
+
+function cut(c::ConeMantle{T}, val::Real, ::Val{:z}) where {T}
+    zMin::T, zMax::T = get_z_limits(c)
+    rbot::T, rtop::T = get_r_limits(c)
+    φMin::T, φMax::T, _ = get_φ_limits(c)
+    if zMin < val < zMax
+        rval::T = get_r_at_z(c, val)
+        return [ConeMantle(rbot, rval, φMin, φMax, zMin, T(val)), ConeMantle(rval, rtop, φMin, φMax, T(val), zMax)]
+    else
+        return [c]
     end
 end
