@@ -50,10 +50,21 @@ end
 function get_vertices(c::ConalPlane{T}) where {T}
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
-    (CartesianPoint{T}(rbotMin * cos(c.φ), rbotMin * sin(c.φ), zMin),
-    CartesianPoint{T}(rbotMax * cos(c.φ), rbotMax * sin(c.φ), zMin),
-    CartesianPoint{T}(rtopMax * cos(c.φ), rtopMax * sin(c.φ), zMax),
-    CartesianPoint{T}(rtopMin * cos(c.φ), rtopMin * sin(c.φ), zMax))
+    sφ, cφ = sincos(c.φ)
+    (CartesianPoint{T}(rbotMin * cφ, rbotMin * sφ, zMin),
+    CartesianPoint{T}(rbotMax * cφ, rbotMax * sφ, zMin),
+    CartesianPoint{T}(rtopMax * cφ, rtopMax * sφ, zMax),
+    CartesianPoint{T}(rtopMin * cφ, rtopMin * sφ, zMax))
+end
+
+function get_vertices_2D(c::ConalPlane{T}) where {T}
+    rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
+    zMin::T, zMax::T = get_z_limits(c)
+    sφ, cφ = sincos(c.φ)
+    (PlanarPoint{T}(rbotMin, zMin),
+    PlanarPoint{T}(rbotMax, zMin),
+    PlanarPoint{T}(rtopMax, zMax),
+    PlanarPoint{T}(rtopMin, zMax))
 end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConalPlane{T})::T where {T}
@@ -85,10 +96,49 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConalPlane{T}
         if rMin ≤ r_on_plane ≤ rMax
             return abs(d)
         else
-            seg = r_on_plane ≥ rMax ? (SVector{2,T}(rbotMax,zMin),SVector{2,T}(rtopMax,zMax)) : (SVector{2,T}(rbotMin,zMin),SVector{2,T}(rtopMin,zMax))
-            point = SVector{2,T}(r_on_plane,point.z)
-            return sqrt(d^2 + distance_to_infinite_line_2D(point, seg)^2)
+            line = r_on_plane ≥ rMax ? Line(T, PlanarPoint{T}(rbotMax,zMin), PlanarPoint{T}(rtopMax,zMax)) : Line(T, PlanarPoint{T}(rbotMin,zMin), PlanarPoint{T}(rtopMin,zMax))
+            point = PlanarPoint{T}(r_on_plane,point.z)
+            return sqrt(d^2 + distance_to_line(point, line)^2)
         end
     end
-    #distance_to_surface(point, Plane(unique(get_vertices(c))..., p4_on_plane_check = false))
 end
+
+function Plane(c::ConalPlane{T}) where {T}
+    rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
+    v = get_vertices(c)
+    if rbotMin == rbotMax
+        return Plane(T, v[2:4]..., nothing)
+    elseif rtopMin == rtopMax
+        return Plane(T, v[1:3]..., nothing)
+    else
+        return Plane(T, v...)
+    end
+end
+
+function get_decomposed_lines(c::ConalPlane{T}) where {T}
+    rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
+    v = get_vertices_2D(c)
+    if rbotMin == rbotMax
+        return AbstractLinePrimitive[
+                                         LineSegment(T,v[2],v[3]),
+                                         LineSegment(T,v[3],v[4]),
+                                         LineSegment(T,v[4],v[2]),
+                                     ]
+    elseif rtopMin == rtopMax
+        return AbstractLinePrimitive[
+                                         LineSegment(T,v[1],v[2]),
+                                         LineSegment(T,v[2],v[3]),
+                                         LineSegment(T,v[3],v[1]),
+                                     ]
+    else
+        return AbstractLinePrimitive[
+                                         LineSegment(T,v[1],v[2]),
+                                         LineSegment(T,v[2],v[3]),
+                                         LineSegment(T,v[3],v[4]),
+                                         LineSegment(T,v[4],v[1])
+                                     ]
+    end
+end
+
+#get_midpoint
+#get_surface_vector

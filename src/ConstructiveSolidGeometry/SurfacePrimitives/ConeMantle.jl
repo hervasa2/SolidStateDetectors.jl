@@ -21,20 +21,20 @@ function ConeMantle(t::Torus{T}; θ = π/2) where {T}
     θ = T(mod(θ,2π))
     sθ, cθ = sincos(θ)
     if θ > T(0) && θ < T(π)
-        rbot = t.r_torus + r_tubeMin*cθ
-        rtop = t.r_torus + r_tubeMax*cθ
-        zMin = r_tubeMin*sθ
-        zMax = r_tubeMax*sθ
+        rbot = geom_round(t.r_torus + r_tubeMin*cθ)
+        rtop = geom_round(t.r_torus + r_tubeMax*cθ)
+        zMin = geom_round(t.z + r_tubeMin*sθ)
+        zMax = geom_round(t.z + r_tubeMax*sθ)
     elseif θ > T(π) && θ < T(2π)
-        rtop = t.r_torus + r_tubeMin*cθ
-        rbot = t.r_torus + r_tubeMax*cθ
-        zMax = r_tubeMin*sθ
-        zMin = r_tubeMax*sθ
+        rtop = geom_round(t.r_torus + r_tubeMin*cθ)
+        rbot = geom_round(t.r_torus + r_tubeMax*cθ)
+        zMax = geom_round(t.z + r_tubeMin*sθ)
+        zMin = geom_round(t.z + r_tubeMax*sθ)
     else
         @error "Cone Mantle not defined for torroidal cordinate θ = 0 or θ = π. Use Annulus"
     end
     r = rbot == rtop ? T(rbot) : (T(rbot), T(rtop))
-    z = T(zMin)..T(zMax)
+    z = zMax == -zMin ? T(zMax) : T(zMin)..T(zMax)
     ConeMantle( T, r, t.φ, z)
 end
 
@@ -53,14 +53,15 @@ function ConeMantle(rbot::R1, rtop::R2, height::H) where {R1<:Real, R2<:Real, H<
 end
 
 function get_surface_vector(c::ConeMantle{T})::CylindricalVector{T} where {T}
-    line = _get_2D_line_segment(c)
-    on_surf_vec = normalize(line[2]-line[1])
+    line = LineSegment(c)
+    on_surf_vec = normalize(line.p2-line.p1)
     CylindricalVector{T}(on_surf_vec[2],0,-on_surf_vec[1])
 end
 
-function get_surface_vector(c::ConeMantle{T}, φ::Real)::CartesianVector{T} where {T}
+function get_surface_vector(c::ConeMantle{T}, point::AbstractCoordinatePoint)::CartesianVector{T} where {T}
+    pcy = CylindricalPoint(point)
     n = get_surface_vector(c)
-    sφ::T, cφ::T = sincos(φ)
+    sφ::T, cφ::T = sincos(pcy.φ)
     CartesianVector{T}(n[1]*cφ, n[1]*sφ, n[3])
 end
 
@@ -80,24 +81,22 @@ in(p::AbstractCoordinatePoint, c::ConeMantle{<:Any, <:Any, Nothing, <:Any}) =
 in(p::AbstractCoordinatePoint, c::ConeMantle{<:Any, <:Any, <:AbstractInterval, <:Any}) =
     _in_z(p, c.z) && _in_φ(p, c.φ) && _eq_cyl_r(p, get_r_at_z(c, p.z))
 
-function _get_2D_line_segment(c::ConeMantle{T}) where {T}
+function LineSegment(c::ConeMantle{T}) where {T}
     rbot::T, rtop::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
-    SVector{2,T}(rbot,zMin), SVector{2,T}(rtop,zMax)
+    LineSegment(T, PlanarPoint{T}(rbot,zMin), PlanarPoint{T}(rtop,zMax))
 end
 
-function _get_3D_line_segment(c::ConeMantle{T}, ::Type{Cartesian}, φ::Real) where {T}
+Line(c::ConeMantle) = Line(LineSegment(c))
+
+function LineSegment(c::ConeMantle{T}, φ::Real) where {T}
     rbot::T, rtop::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
     sφ::T, cφ::T = sincos(φ)
-    CartesianPoint{T}(rbot*cφ,rbot*sφ,zMin), CartesianPoint{T}(rtop*cφ,rtop*sφ,zMax)
+    LineSegment(T, CartesianPoint{T}(rbot*cφ,rbot*sφ,zMin), CartesianPoint{T}(rtop*cφ,rtop*sφ,zMax))
 end
 
-function _get_3D_line_segment(c::ConeMantle{T}, ::Type{Cylindrical}, φ::Real) where {T}
-    rbot::T, rtop::T = get_r_limits(c)
-    zMin::T, zMax::T = get_z_limits(c)
-    CylindricalPoint{T}(rbot,φ,zMin), CylindricalPoint{T}(rtop,φ,zMax)
-end
+Line(c::ConeMantle, φ::Real) = Line(LineSegment(c,φ))
 
 function sample(c::ConeMantle{T}, step::Real) where {T}
     φMin::T, φMax::T, _ = get_φ_limits(c)
@@ -130,17 +129,17 @@ end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConeMantle{T, <:Any, Nothing, <:Any})::T where {T}
     pcy = CylindricalPoint(point)
-    distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), _get_3D_line_segment(c, Cartesian, 0))
+    distance_to_line(PlanarPoint{T}(pcy.r,pcy.z), LineSegment(c))
 end
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConeMantle{T, <:Any, <:AbstractInterval, <:Any})::T where {T}
     pcy = CylindricalPoint(point)
     φMin::T, φMax::T, _ = get_φ_limits(c)
     if _in_φ(pcy, c.φ)
-        return distance_to_line_segment(CartesianPoint{T}(pcy.r,0,pcy.z), _get_3D_line_segment(c, Cartesian, 0))
+        return distance_to_line(PlanarPoint{T}(pcy.r,pcy.z), LineSegment(c))
     else
         φNear = Δ_φ(T(pcy.φ),φMin) ≤ Δ_φ(T(pcy.φ),φMax) ? φMin : φMax
-        return distance_to_line_segment(point, _get_3D_line_segment(c, Cylindrical, φNear))
+        return distance_to_line(CartesianPoint(point), LineSegment(c, φNear))
     end
 end
 
@@ -150,8 +149,33 @@ function cut(c::ConeMantle{T}, val::Real, ::Val{:z}) where {T}
     φMin::T, φMax::T, _ = get_φ_limits(c)
     if zMin < val < zMax
         rval::T = get_r_at_z(c, val)
-        return [ConeMantle(rbot, rval, φMin, φMax, zMin, T(val)), ConeMantle(rval, rtop, φMin, φMax, T(val), zMax)]
+        return ConeMantle{T}[
+            ConeMantle(rbot, rval, φMin, φMax, zMin, T(val)),
+            ConeMantle(rval, rtop, φMin, φMax, T(val), zMax)
+            ]
     else
-        return [c]
+        return ConeMantle{T}[c]
+    end
+end
+
+function merge(c1::ConeMantle{T}, c2::ConeMantle{T}) where {T}
+    if c1 == c2
+        return c1, true
+    else
+        nsol = _get_number_of_intersections(get_intersection(Line(c1), Line(c2)))
+        if isinf(nsol) && c1.φ == c2.φ && c1.z ≠ c2.z
+            zMin1::T, zMax1::T = get_z_limits(c1)
+            zMin2::T, zMax2::T = get_z_limits(c2)
+            φMin1::T, φMax1::T, _ = get_φ_limits(c1)
+            if !isempty((zMin1..zMax1) ∩ (zMin2..zMax2))
+                z = (zMin1..zMax1) ∪ (zMin2..zMax2)
+                return ConeMantle(get_r_at_z(c1, z.left), get_r_at_z(c1, z.right), φMin1, φMax1, z.left, z.right), true
+            else
+                return c1, false
+            end
+        #elseif mergeinphi
+        else
+            return c1, false
+        end
     end
 end

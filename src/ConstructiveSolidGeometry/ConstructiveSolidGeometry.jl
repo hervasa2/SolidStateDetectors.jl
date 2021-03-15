@@ -28,15 +28,18 @@ module ConstructiveSolidGeometry
 
     abstract type AbstractConstructiveGeometry{T} <: AbstractGeometry{T} end
 
+    abstract type AbstractConstructiveSurface{T} <: AbstractConstructiveGeometry{T} end
+
     include("Units.jl")
+    include("Intervals.jl")
     include("PointsAndVectors.jl")
     include("GeometryRounding.jl")
     include("VolumePrimitives/VolumePrimitives.jl")
+    include("LinePrimitives/LinePrimitives.jl")
     include("SurfacePrimitives/SurfacePrimitives.jl")
     include("Sampling.jl")
     include("DistanceToSurface.jl")
     include("Transformations.jl")
-    include("Intervals.jl")
     include("CSG.jl")
     include("IO.jl")
     include("Decompose.jl")

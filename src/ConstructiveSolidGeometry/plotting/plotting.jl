@@ -6,6 +6,8 @@ include("Wireframe.jl")
 
 include("SurfacePrimitives/SurfacePrimitives.jl")
 
+include("LinePrimitives/LinePrimitives.jl")
+
 @recipe function f(g::AbstractGeometry{T}; SSD_style = :wireframe, n = 30) where {T}
 
     seriescolor --> :orange
@@ -81,6 +83,18 @@ end
     end
 end
 
+@recipe function f(la::Array{<:AbstractLinePrimitive}; n = 30, seriescolor = missing)
+    ccolor = ismissing(seriescolor) ? [:blue] : seriescolor
+    if !(typeof(ccolor) <: AbstractArray) ccolor = [ccolor] end
+    for (cn,l) in enumerate(la)
+        @series begin
+            seriescolor := ccolor[(cn-1)%length(ccolor)+1]
+            label := ""
+            l
+        end
+    end
+end
+
 @recipe function f(points::Vector{CartesianPoint{T}}) where {T}
     map(p -> p.x, points), map(p -> p.y, points), map(p -> p.z, points)
 end
@@ -88,6 +102,10 @@ end
 @recipe function f(points::Vector{CylindricalPoint{T}}) where {T}
     points = CartesianPoint.(points)
     map(p -> p.x, points), map(p -> p.y, points), map(p -> p.z, points)
+end
+
+@recipe function f(points::Vector{PlanarPoint{T}}) where {T}
+    map(p -> p.u, points), map(p -> p.v, points)
 end
 
 @recipe function f(m::Mesh{T}) where {T}

@@ -9,6 +9,11 @@ end
         [p.x], [p.y], [p.z]
     end
 end
+@recipe function f(p::PlanarPoint)
+    @series begin
+        [p.u], [p.v]
+    end
+end
 @recipe function f(v::AbstractVector{<:CartesianPoint})
     st -> :scatter
     @series begin
@@ -22,7 +27,3 @@ end
         map(x->CartesianPoint(x),v)
     end
 end
-
-
-
-

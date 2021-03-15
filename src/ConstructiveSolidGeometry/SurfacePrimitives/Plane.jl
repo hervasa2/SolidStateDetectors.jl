@@ -13,9 +13,9 @@ struct Plane{T,TP,TA} <: AbstractSurfacePrimitive{T}
 end
 
 #Constructors
-function Triangle(;p1 = CartesianPoint{Float32}(0,0,0), p2 = CartesianPoint{Float32}(1,0,0), p3 = CartesianPoint{Float32}(0,1,0))
+function Triangle(;p1 = CartesianPoint(0,0,0), p2 = CartesianPoint(1,0,0), p3 = CartesianPoint(0,1,0))
     T = float(promote_type(eltype.((p1, p2, p3))...))
-    Plane(T, p1, p2, p3, nothing)
+    Plane(T, CartesianPoint{T}(p1), CartesianPoint{T}(p2), CartesianPoint{T}(p3), nothing)
 end
 
 Triangle(p1, p2, p3) = Triangle(;p1 = p1, p2 = p2, p3 = p3)
@@ -33,9 +33,16 @@ function get_surface_vector_nonunitary(plane::Plane{T})::CartesianVector{T} wher
 end
 
 function distance_to_infinite_plane(point::CartesianPoint{T}, plane::Plane{T})::T where {T}
-    n::CartesianVector{T} = get_surface_vector(plane)
-    v = CartesianVector{T}(point - plane.p1)
-    abs(dot(n,v))
+    n = get_surface_vector(plane)
+    v = point - plane.p1
+    abs(dot(v,n))
+end
+
+function project_on_plane(point::CartesianPoint{T}, plane::Plane{T}) where {T}
+    n = get_surface_vector(plane)
+    v = point - plane.p1
+    d = dot(v,n)
+    return point - d * n, abs(d)
 end
 
 function on_infinite_plane(point::CartesianPoint{T}, plane::Plane{T})::Bool where {T}
@@ -44,7 +51,7 @@ end
 
 function get_planar_coordinates(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing})::Tuple{T,T} where {T}
     v1, v2 = get_spanning_vectors(tri)
-    v = CartesianVector{T}(point - tri.p1)
+    v = point - tri.p1
     #equation to solve Ax = v where x is new 2D representation of plane. We solve by hitting it with A^T from right
     A = hcat(v1,v2)
     A_T = transpose(A)
@@ -68,14 +75,14 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, tri::Plane{T, Ca
         if geom_round(u+v) ≤ T(1) #in triangle
             return distance_to_infinite_plane(point, tri)
         else # on side 2_3 of tri
-            return distance_to_line_segment(point, (tri.p2,tri.p3))
+            return distance_to_line(point, LineSegment(T,tri.p2,tri.p3))
         end
     elseif geom_round(u) ≤ T(0) && geom_round(v) ≤ T(0) #-- quadrant
         return norm(tri.p1 - point)
     elseif geom_round(u) > T(0) && geom_round(v) < T(0) #+- quadrant, on side 1_2 of tri
-        return distance_to_line_segment(point, (tri.p1,tri.p2))
+        return distance_to_line(point, LineSegment(T,tri.p1,tri.p2))
     elseif geom_round(u) < T(0) && geom_round(v) > T(0) #-+ quadrant, on side 3_1 of tri
-        return distance_to_line_segment(point, (tri.p3,tri.p1))
+        return distance_to_line(point, LineSegment(T,tri.p3,tri.p1))
     end
 end
 
@@ -99,15 +106,14 @@ function sample(tri::Plane{T, CartesianPoint{T}, Nothing}, Nsamps::NTuple{3,Int}
     ]
 end
 
-function Quadrilateral(;p1 = CartesianPoint{Float32}(0,0,0), p2 = CartesianPoint{Float32}(1,0,0), p3 = CartesianPoint{Float32}(1,1,0), p4 = CartesianPoint{Float32}(0,1,0), p4_on_plane_check = true)
+function Quadrilateral(;p1 = CartesianPoint(0,0,0), p2 = CartesianPoint(1,0,0), p3 = CartesianPoint(1,1,0), p4 = CartesianPoint(0,1,0), p4_on_plane_check = true)
     T = float(promote_type(eltype.((p1, p2, p3, p4))...))
+    p1, p2, p3, p4 = CartesianPoint{T}(p1), CartesianPoint{T}(p2), CartesianPoint{T}(p3), CartesianPoint{T}(p4)
     #will return triangle if conditions are not met. Order of points matters, a continous non intersecting line needs to be drawn in p1->p2->p3->p4->p1
     if geom_round(p4) in [geom_round(p1), geom_round(p2), geom_round(p3)]
-        tri = Triangle(p1, p2, p3)
-        #println("Identical vertex")
-        return tri
+        return Plane(T, p1, p2, p3, nothing)
     elseif p4_on_plane_check
-        tri = Triangle(p1, p2, p3)
+        tri = Plane(T, p1, p2, p3, nothing)
         if on_infinite_plane(p4, tri)
             if !projection_in_triangle(p4, tri)
                 v = CartesianVector{T}(p4 - p1)

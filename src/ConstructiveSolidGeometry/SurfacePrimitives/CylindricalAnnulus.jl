@@ -15,6 +15,7 @@ CylindricalAnnulus(c::Cone{T}; z = 0) where {T} = CylindricalAnnulus(T, get_r_at
 
 function CylindricalAnnulus(t::Torus{T}; θ = 0) where {T}
     r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
+    θ = T(mod(θ,2π))
     if θ == T(0)
         rMin = t.r_torus + r_tubeMin
         rMax = t.r_torus + r_tubeMax
@@ -25,7 +26,7 @@ function CylindricalAnnulus(t::Torus{T}; θ = 0) where {T}
         @error "CylindricalAnnulus not defined for torroidal cordinate θ ≠ 0 and θ ≠ π. Use ConeMantle"
     end
     r = rMin == 0 ? T(rMax) : T(rMin)..T(rMax)
-    CylindricalAnnulus( T, r, t.φ, T(0))
+    CylindricalAnnulus( T, r, t.φ, t.z)
 end
 
 
@@ -51,7 +52,7 @@ get_r_limits(a::CylindricalAnnulus{T, <:Union{T, AbstractInterval{T}}, <:Any}) w
 get_φ_limits(a::CylindricalAnnulus{T, <:Any, Nothing}) where {T} = (T(0), T(2π), true)
 get_φ_limits(a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}) where {T} = (a.φ.left, a.φ.right, false)
 
-in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, Nothing}) where {T} = _eq_z(p, a.z) && _in_cyl_r(p, a.r)
+in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, Nothing}; check_on_plane = true) where {T} = _eq_z(p, a.z) && _in_cyl_r(p, a.r)
 
 in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}) where {T} = _eq_z(p, a.z) && _in_φ(p, a.φ) && _in_cyl_r(p, a.r)
 
@@ -101,7 +102,11 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, a::CylindricalAn
         if rMin == rMax
             return norm(CartesianPoint(point)-CartesianPoint(CylindricalPoint{T}(rMin,φNear,a.z)))
         else
-            return distance_to_line_segment(point, (CylindricalPoint{T}(rMin,φNear,a.z),CylindricalPoint{T}(rMax,φNear,a.z)))
+            return distance_to_line(CartesianPoint(point),
+                                    LineSegment(T,CartesianPoint(CylindricalPoint{T}(rMin,φNear,a.z)),
+                                                CartesianPoint(CylindricalPoint{T}(rMax,φNear,a.z))
+                                                )
+                                    )
         end
         #=Δφ = min(Δ_φ(T(point.φ),φMin),Δ_φ(T(point.φ),φMax))
         y, x = point.r .* sincos(Δφ)
@@ -119,8 +124,73 @@ function cut(a::CylindricalAnnulus{T}, val::Real, ::Val{:r}) where {T}
     rMin::T, rMax::T = get_r_limits(a)
     φMin::T, φMax::T, _ = get_φ_limits(a)
     if rMin < val < rMax
-        return [CylindricalAnnulus(rMin, T(val), φMin, φMax, a.z), CylindricalAnnulus(T(val), rMax, φMin, φMax, a.z)]
+        return CylindricalAnnulus{T}[
+            CylindricalAnnulus(rMin, T(val), φMin, φMax, a.z),
+            CylindricalAnnulus(T(val), rMax, φMin, φMax, a.z)
+            ]
     else
-        return [a]
+        return CylindricalAnnulus{T}[a]
     end
+end
+
+function merge(a1::CylindricalAnnulus{T}, a2::CylindricalAnnulus{T}) where {T}
+    if a1 == a2
+        return a1, true
+    else
+        if a1.φ == a2.φ && a1.z == a2.z
+            rMin1::T, rMax1::T = get_r_limits(a1)
+            rMin2::T, rMax2::T = get_r_limits(a2)
+            φMin1::T, φMax1::T, _ = get_φ_limits(a1)
+            if !isempty((rMin1..rMax1) ∩ (rMin2..rMax2))
+                r = (rMin1..rMax1) ∪ (rMin2..rMax2)
+                return CylindricalAnnulus(r.left, r.right, φMin1, φMax1, a1.z), true
+            else
+                return a1, false
+            end
+        #elseif mergeinphi
+        else
+            return a1, false
+        end
+    end
+end
+
+function Plane(a::CylindricalAnnulus{T}) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    Plane(T,
+          CartesianPoint{T}(0, 0, a.z),
+          CartesianPoint{T}(rMax, 0, a.z),
+          CartesianPoint{T}(0, rMax, a.z),
+          nothing
+          )
+end
+
+get_decomposed_lines(a::CylindricalAnnulus{T, T, Nothing}) where {T} = AbstractLinePrimitive[Circle(a.r, PlanarPoint{T}(0,0))]
+
+function get_decomposed_lines(a::CylindricalAnnulus{T, <:AbstractInterval{T}, Nothing}) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    AbstractLinePrimitive[Circle(rMin, PlanarPoint{T}(0,0)), Circle(rMax, PlanarPoint{T}(0,0))]
+end
+
+function get_decomposed_lines(a::CylindricalAnnulus{T, T, <:AbstractInterval{T}}) where {T}
+    φMin::T, φMax::T, _ = get_φ_limits(a)
+    sφMin, cφMin = sincos(φMin)
+    sφMax, cφMax = sincos(φMax)
+    AbstractLinePrimitive[
+                          Arc(T, a.r, PlanarPoint{T}(0,0), a.φ),
+                          LineSegment(T, PlanarPoint{T}(0,0), PlanarPoint{T}(a.r*cφMin, a.r*sφMin)),
+                          LineSegment(T, PlanarPoint{T}(0,0), PlanarPoint{T}(a.r*cφMax, a.r*sφMax))
+                          ]
+end
+
+function get_decomposed_lines(a::CylindricalAnnulus{T, <:AbstractInterval{T}, <:AbstractInterval{T}}) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    φMin::T, φMax::T, _ = get_φ_limits(a)
+    sφMin, cφMin = sincos(φMin)
+    sφMax, cφMax = sincos(φMax)
+    AbstractLinePrimitive[
+                          Arc(T, rMin, PlanarPoint{T}(0,0), a.φ),
+                          LineSegment(T, PlanarPoint{T}(rMin*cφMin, rMin*sφMin), PlanarPoint{T}(rMax*cφMin, rMax*sφMin)),
+                          LineSegment(T, PlanarPoint{T}(rMin*cφMax, rMin*sφMax), PlanarPoint{T}(rMax*cφMax, rMax*sφMax)),
+                          Arc(T, rMax, PlanarPoint{T}(0,0), a.φ)
+                          ]
 end
