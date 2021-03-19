@@ -21,12 +21,40 @@ Arc(r, center, αMin, αMax) = Arc(; r = r, center = center, αMin = αMin, αMa
 Circle(r::T, center::PlanarPoint{T}) where {T} = Arc(T, r, center, nothing)
 Circle(a::Arc{T}) where {T} = Arc(T, a.r, a.center, nothing)
 
+get_surface_vector(a::Arc{T}, point::PlanarPoint) where {T} =  normalize(PlanarVector{T}(point - a.center))
+
 get_α_at_u_v(a::Arc{T}, u::Real, v::Real) where {T} = mod(atan(v - a.center.v, u - a.center.u), 2π) #u,v are planar coordinates
 
 get_α_limits(a::Arc{T, <:Any, Nothing}) where {T} = (T(0), T(2π), true)
 get_α_limits(a::Arc{T, <:Any, <:AbstractInterval}) where {T} = (a.α.left, a.α.right, false)
 
 translate(a::Arc{T}, t::PlanarVector{T}) where {T} = Arc(T, a.r, a.center + t, a.α)
+
+function distance_to_line(point::PlanarPoint{T}, a::Arc{T, <:Any, Nothing}) where {T}
+    p_t = point - a.center
+    r = hypot(p_t.u, p_t.v)
+    abs(a.r - r)
+end
+
+function distance_to_line(point::PlanarPoint{T}, a::Arc{T, <:Any, <:AbstractInterval}) where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    p_t = point - a.center
+    r = hypot(p_t.u, p_t.v)
+    α = atan(p_t.v, p_t.u)
+    if _in_angular_interval_closed(α, a.α)
+        return abs(a.r - r)
+    else
+        αNear = Δ_φ(T(α),αMin) ≤ Δ_φ(T(α),αMax) ? αMin : αMax
+        sαNear, cαNear = sincos(αNear)
+        return norm(p_t - PlanarPoint{T}(a.r*cαNear, a.r*sαNear))
+    end
+end
+
+function get_midpoint(a::Arc{T}) where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    sαMid::T, cαMid::T = sincos((αMax + αMin)/2)
+    PlanarPoint{T}(a.r*cαMid + a.center.u, a.r*sαMid + a.center.v)
+end
 
 function cut(a::Arc{T}, val::Real, ::Val{:α}) where {T}
     αMin::T, αMax::T, _ = get_α_limits(a)
@@ -38,5 +66,22 @@ function cut(a::Arc{T}, val::Real, ::Val{:α}) where {T}
                      ]
     else
         return Arc{T}[a]
+    end
+end
+
+function merge(a1::Arc{T}, a2::Arc{T}) where {T}
+    if a1 == a2
+        return a1, true
+    else
+        if a1.r == a2.r && a1.center == a2.center
+            α = union_angular_intervals(get_angular_interval(T, a1.α), get_angular_interval(T, a2.α))
+            if !isnothing(α)
+                return Arc(a1.r, a1.center, α.left, α.right), true
+            else
+                return a1, false
+            end
+        else
+            return a1, false
+        end
     end
 end

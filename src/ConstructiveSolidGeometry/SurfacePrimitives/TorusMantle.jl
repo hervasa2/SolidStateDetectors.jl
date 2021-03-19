@@ -1,4 +1,4 @@
-struct TorusMantle{T,TR,TB,TP,TT,TZ} <: AbstractSurfacePrimitive{T}
+struct TorusMantle{T,TR,TB,TP,TT,TZ} <: AbstractRotationalSurfacePrimitive{T}
     r_torus::TR
     r_tube::TB
     φ::TP
@@ -27,9 +27,9 @@ TorusMantle(r_torus, r_tube, φMin, φMax, θMin, θMax, z) = TorusMantle(;r_tor
 
 function get_surface_vector(t::TorusMantle{T}, point::AbstractCoordinatePoint)::CartesianVector{T} where {T}
     pcy = CylindricalPoint(point)
-    n = CylindricalVector{T}(pcy.r - t.r_torus, 0, pcy.z - t.z)
+    r = pcy.r - t.r_torus
     sφ::T, cφ::T = sincos(pcy.φ)
-    CartesianVector{T}(n[1]*cφ, n[1]*sφ, n[3])
+    CartesianVector{T}(r*cφ, r*sφ, pcy.z - t.z)
 end
 
 in(p::AbstractCoordinatePoint, t::TorusMantle{<:Any, <:Any, <:Any, Nothing, Nothing}) =
@@ -130,12 +130,8 @@ function merge(t1::TorusMantle{T}, t2::TorusMantle{T}) where {T}
         return t1, true
     else
         if t1.z == t2.z && t1.r_torus == t2.r_torus && t1.r_tube == t2.r_tube && t1.φ == t2.φ
-            θMin1::T, θMax1::T, _ = get_θ_limits(t1)
-            θMin2::T, θMax2::T, _ = get_θ_limits(t2)
             φMin1::T, φMax1::T, _ = get_φ_limits(t1)
-            θ1 = (θMin1..θMax1)
-            θ2 = (θMin2..θMax2)
-            θ = union_angular_intervals(θ1, θ2)
+            θ = union_angular_intervals(get_angular_interval(T, t1.θ), get_angular_interval(T, t2.θ))
             if !isnothing(θ)
                 return TorusMantle(t1.r_torus, t1.r_tube, φMin1, φMax1, θ.left, θ.right, t1.z), true
             else
@@ -150,3 +146,5 @@ end
 
 Arc(t::TorusMantle{T}) where {T} = Arc(T, t.r_tube, PlanarPoint{T}(t.r_torus,t.z), t.θ)
 Circle(t::TorusMantle{T}) where {T} = Arc(T, t.r_tube, PlanarPoint{T}(t.r_torus,t.z), nothing)
+
+get_cross_section(t::TorusMantle) = Arc(t)

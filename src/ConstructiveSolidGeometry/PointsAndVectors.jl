@@ -32,6 +32,9 @@ end
 
 @inline _eq_cyl_r(p::CartesianPoint{T}, r::Real) where {T} = hypot(p.x, p.y) == T(r)
 
+@inline _in_planar_r(p::PlanarPoint, r::Real) = hypot(p.u, p.v) <= r
+@inline _in_planar_r(p::PlanarPoint, r::AbstractInterval) = hypot(p.u, p.v) in r
+
 @inline _in_cyl_r(p::CartesianPoint, r::Real) = hypot(p.x, p.y) <= r
 @inline _in_cyl_r(p::CartesianPoint, r::AbstractInterval) = hypot(p.x, p.y) in r
 
@@ -39,11 +42,17 @@ end
 
 @inline _in_φ(p::CartesianPoint{T}, φ::AbstractInterval) where {T} = _in_angular_interval_closed(mod(atan(p.y, p.x), T(2π)), φ)
 
+@inline _in_planar_α(p::PlanarPoint{T}, α::AbstractInterval) where {T} = _in_angular_interval_closed(mod(atan(p.v, p.u), T(2π)), α)
+
 @inline _in_x(p::CartesianPoint, x::Real) = abs(p.x) <= x
 @inline _in_x(p::CartesianPoint, x::AbstractInterval) = p.x in x
 
+@inline _in_planar_u(p::PlanarPoint, u::AbstractInterval) = p.u in u
+
 @inline _in_y(p::CartesianPoint, y::Real) = abs(p.y) <= y
 @inline _in_y(p::CartesianPoint, y::AbstractInterval) = p.y in y
+
+@inline _in_planar_v(p::PlanarPoint, v::AbstractInterval) = p.v in v
 
 @inline _eq_z(p::CartesianPoint{T}, z::Real) where {T} = isapprox(p.z, T(z), atol = geom_atol_zero(T))
 

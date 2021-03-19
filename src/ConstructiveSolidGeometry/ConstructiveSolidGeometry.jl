@@ -23,12 +23,17 @@ module ConstructiveSolidGeometry
 
     abstract type AbstractPrimitive{T} <: AbstractGeometry{T} end
     abstract type AbstractVolumePrimitive{T} <: AbstractPrimitive{T} end
+
     abstract type AbstractSurfacePrimitive{T} <: AbstractPrimitive{T} end
+    abstract type AbstractRotationalSurfacePrimitive{T} <: AbstractSurfacePrimitive{T} end
+    abstract type AbstractPlanarSurfacePrimitive{T} <: AbstractSurfacePrimitive{T} end
+
     abstract type AbstractLinePrimitive{T} <: AbstractPrimitive{T} end
 
     abstract type AbstractConstructiveGeometry{T} <: AbstractGeometry{T} end
 
     abstract type AbstractConstructiveSurface{T} <: AbstractConstructiveGeometry{T} end
+    abstract type AbstractConstructivePlanarSurface{T} <: AbstractConstructiveSurface{T} end
 
     include("Units.jl")
     include("Intervals.jl")

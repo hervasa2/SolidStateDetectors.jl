@@ -1,4 +1,4 @@
-struct Plane{T,TP,TA} <: AbstractSurfacePrimitive{T}
+struct Plane{T,TP,TA} <: AbstractPlanarSurfacePrimitive{T}
     p1::TP
     p2::TP
     p3::TP
@@ -19,6 +19,21 @@ function Triangle(;p1 = CartesianPoint(0,0,0), p2 = CartesianPoint(1,0,0), p3 = 
 end
 
 Triangle(p1, p2, p3) = Triangle(;p1 = p1, p2 = p2, p3 = p3)
+
+function Plane(::Val{:φ}, val::T) where {T}
+    sφ, cφ = sincos(val)
+    origin = CartesianPoint{T}(0, 0, 0)
+    p2 = CartesianPoint{T}(cφ, sφ, 0)
+    p3 = CartesianPoint{T}(0, 0, 1)
+    Plane(T, origin, p2, p3, nothing)
+end
+
+function Plane(::Val{:z}, val::T) where {T}
+    origin = CartesianPoint{T}(0, 0, val)
+    p2 = CartesianPoint{T}(1, 0, val)
+    p3 = CartesianPoint{T}(0, 1, val)
+    Plane(T, origin, p2, p3, nothing)
+end
 
 get_vertices(tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} = (tri.p1, tri.p2, tri.p3)
 
@@ -46,7 +61,7 @@ function project_on_plane(point::CartesianPoint{T}, plane::Plane{T}) where {T}
 end
 
 function on_infinite_plane(point::CartesianPoint{T}, plane::Plane{T})::Bool where {T}
-    distance_to_infinite_plane(point, plane) == T(0)
+    isapprox(distance_to_infinite_plane(point, plane), T(0), atol = geom_atol_zero(T))
 end
 
 function get_planar_coordinates(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing})::Tuple{T,T} where {T}
@@ -56,12 +71,21 @@ function get_planar_coordinates(point::CartesianPoint{T}, tri::Plane{T, Cartesia
     A = hcat(v1,v2)
     A_T = transpose(A)
     x = inv(A_T*A)*(A_T*v)
-    x[1], x[2]
+    x[1], x[2] #in units of spaning vectors
+end
+
+#note that for this to be a cartesian point spanning vectors must be orthogonal
+get_planar_point(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} =
+    PlanarPoint{T}((get_planar_coordinates(point, tri) .* norm.(get_spanning_vectors(tri)))...)
+
+function get_cartesian_point(point::PlanarPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing}) where {T}
+    u_vec, v_vec = point .* normalize.(get_spanning_vectors(tri))
+    tri.p1 + u_vec + v_vec
 end
 
 function projection_in_triangle(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing})::Bool where {T}
     u, v = get_planar_coordinates(point, tri)
-    geom_round(u) ≥ T(0) && geom_round(v) ≥ T(0) && geom_round(u+v) ≤ T(1)
+    u ≥ T(0) && v ≥ T(0) && u+v ≤ T(1)
 end
 
 in(point::CartesianPoint{T}, tri::Plane{T, CartesianPoint{T}, Nothing}) where {T} = projection_in_triangle(point, tri) && on_infinite_plane(point, tri)

@@ -1,4 +1,4 @@
-struct ToroidalAnnulus{T,TR,TB,TP,TT,TZ} <: AbstractSurfacePrimitive{T}
+struct ToroidalAnnulus{T,TR,TB,TP,TT,TZ} <: AbstractPlanarSurfacePrimitive{T}
     r_torus::TR
     r_tube::TB
     φ::TP
@@ -26,7 +26,13 @@ end
 
 ToroidalAnnulus(r_torus, r_tubeMin, r_tubeMax, φ, θMin, θMax, z) = ToroidalAnnulus(;r_torus = r_torus, r_tubeMin = r_tubeMin, r_tubeMax = r_tubeMax, φ = φ, θMin = θMin, θMax = θMax, z = z)
 
-in(p::AbstractCoordinatePoint, t::ToroidalAnnulus{<:Any, <:Any, <:Any, <:Any, Nothing}; check_on_plane = true) =
+in(p::PlanarPoint, t::ToroidalAnnulus{<:Any, <:Any, <:Any, <:Any, Nothing}) =
+    _in_planar_r(p - PlanarPoint(t.r_torus, t.z), t.r_tube)
+
+in(p::PlanarPoint, t::ToroidalAnnulus{<:Any, <:Any, <:Any, <:Any, <:AbstractInterval}) =
+    _in_planar_r(p - PlanarPoint(t.r_torus, t.z), t.r_tube) && _in_planar_α(p - PlanarPoint(t.r_torus, t.z), t.θ)
+
+in(p::AbstractCoordinatePoint, t::ToroidalAnnulus{<:Any, <:Any, <:Any, <:Any, Nothing}) =
     _in_torr_r_tube(p, t.r_torus, t.r_tube, t.z) && _eq_φ(p, t.φ)
 
 in(p::AbstractCoordinatePoint, t::ToroidalAnnulus{<:Any, <:Any, <:Any, <:Any, <:AbstractInterval}) =
@@ -58,30 +64,27 @@ function sample(t::ToroidalAnnulus{T}, Nsamps::NTuple{3,Int}) where {T}
     ]
 end
 
-function Plane(t::ToroidalAnnulus{T}) where {T}
-    r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
-    sφ, cφ = sincos(t.φ)
-    Plane(T,
-          CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, t.z),
+Plane(t::ToroidalAnnulus) = Plane(Val(:φ), t.φ)
+    #r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
+    #sφ, cφ = sincos(t.φ)
+    #=Plane(T,
+          CartesianPoint{T}(0, 0, 0),
           CartesianPoint{T}((t.r_torus+r_tubeMax)*cφ, (t.r_torus+r_tubeMax)*sφ, t.z),
           CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, r_tubeMax + t.z),
           nothing
-          )
-end
-
-function _transform_point_to_xy_plane_representation(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::CartesianPoint{T} where {T}
-    pct = CartesianPoint(point)
-    tri = Plane(t)
-    CartesianPoint{T}((get_planar_coordinates(pct, tri).*norm.(get_spanning_vectors(tri)))...,distance_to_infinite_plane(pct, tri))
-end
+          )=#
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::T where {T}
-    pct_transformed = _transform_point_to_xy_plane_representation(point, t)
+    pct = CartesianPoint(point)
+    plane = Plane(t)
+    planar_point = get_planar_point(pct, plane) - PlanarVector{T}(t.r_torus, t.z)
+    pct_transformed = CartesianPoint{T}(planar_point..., distance_to_infinite_plane(pct, plane))
     distance_to_surface(pct_transformed, CylindricalAnnulus(T, t.r_tube, t.θ, T(0)))
 end
 
+#plane and get_decomposed_lines have to be defined with the same origin
 get_decomposed_lines(t::ToroidalAnnulus{T}) where {T} =
-    AbstractLinePrimitive[translate(line, PlanarVector{T}(t.r_torus, t.z)) for line in get_decomposed_lines(CylindricalAnnulus(T, t.r_tube, t.θ, T(0)))]
+    translate.(get_decomposed_lines(CylindricalAnnulus(T, t.r_tube, t.θ, T(0))), (PlanarVector{T}(t.r_torus, t.z),))
 
 #get_midpoint
 #get_surface_vector

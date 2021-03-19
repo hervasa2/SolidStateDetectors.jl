@@ -49,7 +49,7 @@ end
         []
     end
 
-    if SSD_style == :wireframe
+    if SSD_style == :wireframe #update to only plot real surfaces
         pos, _ = get_decomposed_volumes(g)
         for p in pos
             linewidth --> 2
@@ -83,7 +83,8 @@ end
     end
 end
 
-@recipe function f(la::Array{<:AbstractLinePrimitive}; n = 30, seriescolor = missing)
+@recipe function f(la::Array{<:AbstractLinePrimitive}; n = 30, seriescolor = missing) #2D plot
+    aspect_ratio := 1
     ccolor = ismissing(seriescolor) ? [:blue] : seriescolor
     if !(typeof(ccolor) <: AbstractArray) ccolor = [ccolor] end
     for (cn,l) in enumerate(la)

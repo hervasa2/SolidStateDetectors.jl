@@ -1,4 +1,4 @@
-struct ConeMantle{T,TR,TP,TZ} <: AbstractSurfacePrimitive{T}
+struct ConeMantle{T,TR,TP,TZ} <: AbstractRotationalSurfacePrimitive{T}
     r::TR #if not a Tuple, then ConeMantle is a Tube
     φ::TP
     z::TZ
@@ -43,7 +43,7 @@ function ConeMantle(;rbot = 1, rtop = 0, φMin = 0, φMax = 2π, zMin = -1/2, zM
     r = rbot == rtop ? T(rbot) : (T(rbot), T(rtop))
     φ = mod(T(φMax) - T(φMin), T(2π)) == 0 ? nothing : T(φMin)..T(φMax)
     z = zMax == -zMin ? T(zMax) : T(zMin)..T(zMax)
-    ConeMantle( T, r, φ, z)
+    ConeMantle(T, r, φ, z)
 end
 ConeMantle(rbot, rtop, φMin, φMax, zMin, zMax) = ConeMantle(;rbot = rbot, rtop = rtop, φMin = φMin, φMax = φMax, zMin = zMin, zMax = zMax)
 
@@ -98,6 +98,8 @@ end
 
 Line(c::ConeMantle, φ::Real) = Line(LineSegment(c,φ))
 
+get_cross_section(c::ConeMantle) =  LineSegment(c)
+
 function sample(c::ConeMantle{T}, step::Real) where {T}
     φMin::T, φMax::T, _ = get_φ_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
@@ -150,9 +152,24 @@ function cut(c::ConeMantle{T}, val::Real, ::Val{:z}) where {T}
     if zMin < val < zMax
         rval::T = get_r_at_z(c, val)
         return ConeMantle{T}[
-            ConeMantle(rbot, rval, φMin, φMax, zMin, T(val)),
-            ConeMantle(rval, rtop, φMin, φMax, T(val), zMax)
-            ]
+                                ConeMantle(rbot, rval, φMin, φMax, zMin, T(val)),
+                                ConeMantle(rval, rtop, φMin, φMax, T(val), zMax)
+                            ]
+    else
+        return ConeMantle{T}[c]
+    end
+end
+
+function cut(c::ConeMantle{T}, val::Real, ::Val{:φ}) where {T}
+    zMin::T, zMax::T = get_z_limits(c)
+    rbot::T, rtop::T = get_r_limits(c)
+    φMin::T, φMax::T, _ = get_φ_limits(c)
+    if _in_angular_interval_open(val, c.φ)
+        val_in = mod(val - φMin, T(2π)) + φMin
+        return ConeMantle{T}[
+                                ConeMantle(rbot, rtop, φMin, T(val_in), zMin, zMax),
+                                ConeMantle(rbot, rtop, T(val_in), φMax, zMin, zMax)
+                             ]
     else
         return ConeMantle{T}[c]
     end

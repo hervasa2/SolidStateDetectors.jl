@@ -1,14 +1,9 @@
 include("Line.jl")
-include("LineSegment.jl")
+#include("LineSegment.jl")
 include("Arc.jl")
 
-@recipe function f(lines::Array{AbstractLinePrimitive}; n = 30)
+@recipe function f(l::AbstractLinePrimitive{T}; n = 30) where {T}
     seriescolor --> :orange
     linewidth --> 2
-    for line in lines
-        @series begin
-            label := ""
-            line
-        end
-    end
+    get_plot_points(l)
 end

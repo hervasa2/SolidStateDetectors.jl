@@ -1,4 +1,4 @@
-struct ConalPlane{T,TR,TP,TZ} <: AbstractSurfacePrimitive{T}
+struct ConalPlane{T,TR,TP,TZ} <: AbstractPlanarSurfacePrimitive{T}
     r::TR #if tupple trapezoid/triangle, or else rectangle
     φ::TP
     z::TZ
@@ -23,6 +23,9 @@ ConalPlane(rbotMin, rbotMax, rtopMin, rtopMax, φ, zMin, zMax) = ConalPlane(; rb
 get_r_at_z(c::ConalPlane{T}, z::Real) where {T} = get_r_at_z(Cone(T, c.r, nothing, c.z), z::Real)
 get_r_limits(c::ConalPlane{T}) where {T} = get_r_limits(Cone(T, c.r, nothing, c.z))
 get_z_limits(c::ConalPlane{T}) where {T} = (_left_linear_interval(c.z), _right_linear_interval(c.z))
+
+in(p::PlanarPoint, c::ConalPlane) =
+    _in_planar_v(p, _extend_number_to_symmetric_interval(c.z)) && _in_planar_u(p, _extend_number_to_zero_interval(get_r_at_z(c, p.v)))
 
 in(p::AbstractCoordinatePoint, c::ConalPlane) =
     _in_z(p, c.z) && _eq_φ(p, c.φ) && _in_cyl_r(p, get_r_at_z(c, p.z))
@@ -103,8 +106,8 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, c::ConalPlane{T}
     end
 end
 
-function Plane(c::ConalPlane{T}) where {T}
-    rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
+Plane(c::ConalPlane) = Plane(Val(:φ), c.φ)
+    #=rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     v = get_vertices(c)
     if rbotMin == rbotMax
         return Plane(T, v[2:4]..., nothing)
@@ -112,10 +115,9 @@ function Plane(c::ConalPlane{T}) where {T}
         return Plane(T, v[1:3]..., nothing)
     else
         return Plane(T, v...)
-    end
-end
+    end=#
 
-function get_decomposed_lines(c::ConalPlane{T}) where {T}
+function get_decomposed_lines(c::ConalPlane{T}) where {T} #plane and get_decomposed_lines have to be defined with the same origin
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     v = get_vertices_2D(c)
     if rbotMin == rbotMax

@@ -11,85 +11,135 @@ function cut(surf::AbstractPrimitive, val::Tuple{T,T}, cutdir::Val) where {T}
     length(cut1) > 1 ? append!(cut1[begin:1], cut(cut1[2], cutvals[2], cutdir)) : cut(cut1[1], cutvals[2], cutdir)
 end
 
-get_cut_surfaces(c1::CylindricalAnnulus{T, <:Any, Nothing}, c2::CylindricalAnnulus{T, <:Any, Nothing}) where {T} = [c1]
-
-function get_cut_surfaces(c::CylindricalAnnulus{T, <:Any, Nothing}, m::ConeMantle{T, <:Any, Nothing}) where {T}
-    zMin::T, zMax::T = get_z_limits(m)
-    if zMin ≤ c.z ≤ zMax
-        r_cm = get_r_at_z(m, c.z)
-        return cut(c, r_cm, Val(:r))
-    else
-        return [c]
-    end
+function cut(surf::AbstractPrimitive, val::Tuple{T,T}, cutdir::Union{Val{:point}, Val{:φ}, Val{:θ}, Val{:α}}) where {T}
+    cut1 = cut(surf, val[1], cutdir)
+    length(cut1) > 1 ? append!(cut(cut1[1], val[2], cutdir), cut(cut1[2], val[2], cutdir)) : cut(cut1[1], val[2], cutdir)
 end
 
-function get_cut_surfaces(m::ConeMantle{T, <:Any, Nothing}, c::CylindricalAnnulus{T, <:Any, Nothing}) where {T}
-    rMin::T, rMax::T = get_r_limits(c)
-    r_cm = get_r_at_z(m, c.z)
-    return rMin ≤ r_cm ≤ rMax ? cut(m, c.z, Val(:z)) : [m]
-end
+#=
+get_cut_surfaces(c1::CylindricalAnnulus{T}, c2::CylindricalAnnulus{T}) where {T} = [c1]
 
-function get_cut_surfaces(m1::ConeMantle{T, <:Any, Nothing}, m2::ConeMantle{T, <:Any, Nothing}) where {T}
-    sol = get_intersection(Line(m1), Line(m2))
-    n_sol = _get_number_of_intersections(sol)
-    if n_sol == 1
-        zMin::T, zMax::T = get_z_limits(m2)
-        return zMin ≤ sol[1][2] ≤ zMax ? cut(m1, sol[1][2], Val(:z)) : [m1]
-    else
-        return [m1]
-    end
-end
-
-function get_cut_surfaces(t::TorusMantle{T, <:Any, <:Any, Nothing}, c::CylindricalAnnulus{T, <:Any, Nothing}) where {T}
-    θ_t1 = get_θ_at_z(t, c.z)
-    if !isnothing(θ_t1)
-        rMin::T, rMax::T = get_r_limits(c)
-        θ_t = filter(θ -> rMin ≤ get_r_at_θ(t, θ) ≤ rMax, θ_t1)
-        return cut(t, θ_t, Val(:θ))
-    else
-        return [t]
-    end
-end
-
-function get_cut_surfaces(c::CylindricalAnnulus{T, <:Any, Nothing}, t::TorusMantle{T, <:Any, <:Any, Nothing}) where {T}
-    θ_t1 = get_θ_at_z(t, c.z)
-    if !isnothing(θ_t1)
-        θ_t = filter(θ -> _in_angular_interval_closed(θ, t.θ, tol = geom_atol_zero(T)), θ_t1)
-        return cut(c, map(θ -> get_r_at_θ(t, θ), θ_t), Val(:r))
-    else
-        return [c]
-    end
-end
-
-
-function get_cut_surfaces(t::TorusMantle{T, <:Any, <:Any, Nothing}, m::ConeMantle{T, <:Any, Nothing}) where {T}
-    sol1 = get_intersection(Line(m), Circle(t))
-    if !isnothing(sol1)
+function get_cut_surfaces(c::CylindricalAnnulus{T}, m::ConeMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, c.φ), get_angular_interval(T, m.φ))
         zMin::T, zMax::T = get_z_limits(m)
-        sol = filter(p -> zMin ≤ p[2] ≤ zMax, sol1)
-        return cut(t, map(p -> get_θ_at_r_z(t, p...), sol), Val(:θ))
+        if zMin ≤ c.z ≤ zMax
+            r_cm = get_r_at_z(m, c.z)
+            return cut(c, r_cm, Val(:r))
+        else
+            return [c]
+        end
     else
-        return [t]
+        return [c]
     end
 end
 
-function get_cut_surfaces(m::ConeMantle{T, <:Any, Nothing}, t::TorusMantle{T, <:Any, <:Any, Nothing}) where {T}
-    sol1 = get_intersection(Line(m), Circle(t))
-    if !isnothing(sol1)
-        sol = filter(p -> _in_angular_interval_closed(get_θ_at_r_z(t, p...), t.θ, tol = geom_atol_zero(T)), sol1)
-        return cut(m, map(p -> p[2], sol), Val(:z))
+function get_cut_surfaces(m::ConeMantle{T}, c::CylindricalAnnulus{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, m.φ), get_angular_interval(T, c.φ))
+        rMin::T, rMax::T = get_r_limits(c)
+        r_cm = get_r_at_z(m, c.z)
+        return rMin ≤ r_cm ≤ rMax ? cut(m, c.z, Val(:z)) : [m]
     else
         return [m]
     end
 end
 
-function get_cut_surfaces(t1::TorusMantle{T, <:Any, <:Any, Nothing}, t2::TorusMantle{T, <:Any, <:Any, Nothing}) where {T}
-    sol1 = get_intersection(Circle(t1), Circle(t2))
-    n_sol = _get_number_of_intersections(sol1)
-    if n_sol > 0 && !isinf(n_sol)
-        sol = filter(p -> _in_angular_interval_closed(get_θ_at_r_z(t2, p...), t2.θ, tol = geom_atol_zero(T)), sol1)
-        return cut(t1, map(p -> get_θ_at_r_z(t1, p...), sol), Val(:θ))
+function get_cut_surfaces(m1::ConeMantle{T}, m2::ConeMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, m1.φ), get_angular_interval(T, m2.φ))
+        sol = get_intersection(Line(m1), Line(m2))
+        n_sol = _get_number_of_intersections(sol)
+        if n_sol == 1
+            zMin::T, zMax::T = get_z_limits(m2)
+            return zMin ≤ sol[1][2] ≤ zMax ? cut(m1, sol[1][2], Val(:z)) : [m1]
+        else
+            return [m1]
+        end
+    else
+        return [m1]
+    end
+end
+
+function get_cut_surfaces(t::TorusMantle{T}, c::CylindricalAnnulus{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, t.φ), get_angular_interval(T, c.φ))
+        θ_t1 = get_θ_at_z(t, c.z)
+        if !isnothing(θ_t1)
+            rMin::T, rMax::T = get_r_limits(c)
+            θ_t = filter(θ -> rMin ≤ get_r_at_θ(t, θ) ≤ rMax, θ_t1)
+            return cut(t, θ_t, Val(:θ))
+        else
+            return [t]
+        end
+    else
+        return [t]
+    end
+end
+
+function get_cut_surfaces(c::CylindricalAnnulus{T}, t::TorusMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, c.φ), get_angular_interval(T, t.φ))
+        θ_t1 = get_θ_at_z(t, c.z)
+        if !isnothing(θ_t1)
+            θ_t = filter(θ -> _in_angular_interval_closed(θ, t.θ, tol = geom_atol_zero(T)), θ_t1)
+            return cut(c, map(θ -> get_r_at_θ(t, θ), θ_t), Val(:r))
+        else
+            return [c]
+        end
+    else
+        return [c]
+    end
+end
+
+
+function get_cut_surfaces(t::TorusMantle{T}, m::ConeMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, t.φ), get_angular_interval(T, m.φ))
+        sol1 = get_intersection(Line(m), Circle(t))
+        if !isnothing(sol1)
+            zMin::T, zMax::T = get_z_limits(m)
+            sol = filter(p -> zMin ≤ p[2] ≤ zMax, sol1)
+            return cut(t, map(p -> get_θ_at_r_z(t, p...), sol), Val(:θ))
+        else
+            return [t]
+        end
+    else
+        return [t]
+    end
+end
+
+function get_cut_surfaces(m::ConeMantle{T}, t::TorusMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, m.φ), get_angular_interval(T, t.φ))
+        sol1 = get_intersection(Line(m), Circle(t))
+        if !isnothing(sol1)
+            sol = filter(p -> _in_angular_interval_closed(get_θ_at_r_z(t, p...), t.θ, tol = geom_atol_zero(T)), sol1)
+            return cut(m, map(p -> p[2], sol), Val(:z))
+        else
+            return [m]
+        end
+    else
+        return [m]
+    end
+end
+
+function get_cut_surfaces(t1::TorusMantle{T}, t2::TorusMantle{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, t1.φ), get_angular_interval(T, t2.φ))
+        sol1 = get_intersection(Circle(t1), Circle(t2))
+        n_sol = _get_number_of_intersections(sol1)
+        if n_sol > 0 && !isinf(n_sol)
+            sol = filter(p -> _in_angular_interval_closed(get_θ_at_r_z(t2, p...), t2.θ, tol = geom_atol_zero(T)), sol1)
+            return cut(t1, map(p -> get_θ_at_r_z(t1, p...), sol), Val(:θ))
+        else
+            return [t1]
+        end
     else
         return [t1]
     end
 end
+=#
+
+function get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::AbstractRotationalSurfacePrimitive{T}) where {T}
+    if is_intersection_an_interval(get_angular_interval(T, s1.φ), get_angular_interval(T, s2.φ))
+        lines = get_cut_lines(get_cross_section(s1), get_cross_section(s2))
+        return length(lines) == 1 ? [s1] : [get_rotational_surface_from_cross_section(l, s1.φ) for l in lines]
+    else
+        return [s1]
+    end
+end
+
+get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::AbstractPlanarSurfacePrimitive{T}) where {T} = cut(s1, get_plane_φ(s2), Val(:φ))

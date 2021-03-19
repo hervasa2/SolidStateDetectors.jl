@@ -1,4 +1,4 @@
-function get_cut_lines(l1::LineSegment{T}, l2::LineSegment{T}) where {T}
+function get_cut_lines(l1::Line{T}, l2::Line{T}) where {T}
     sol = get_intersection(Line(l1), Line(l2))
     n_sol = _get_number_of_intersections(sol)
     if n_sol == 1
@@ -8,7 +8,7 @@ function get_cut_lines(l1::LineSegment{T}, l2::LineSegment{T}) where {T}
     end
 end
 
-function get_cut_lines(l::LineSegment{T,PlanarPoint{T}}, c::Arc{T}) where {T}
+function get_cut_lines(l::Line{T}, c::Arc{T}) where {T}
     sol1 = get_intersection(Line(l), Circle(c))
     if !isnothing(sol1)
         sol = filter(p -> _in_angular_interval_closed(get_α_at_u_v(c, p...), c.α, tol = geom_atol_zero(T)), sol1)
@@ -18,7 +18,7 @@ function get_cut_lines(l::LineSegment{T,PlanarPoint{T}}, c::Arc{T}) where {T}
     end
 end
 
-function get_cut_lines(c::Arc{T}, l::LineSegment{T,PlanarPoint{T}}) where {T}
+function get_cut_lines(c::Arc{T}, l::Line{T}) where {T}
     sol1 = get_intersection(Line(l), Circle(c))
     if !isnothing(sol1)
         sol = filter(p -> p in l, sol1)
@@ -38,6 +38,3 @@ function get_cut_lines(c1::Arc{T}, c2::Arc{T}) where {T}
         return [c1]
     end
 end
-
-#allows ConstructiveSurfaces to use machinery of ConstructiveGeometry
-get_cut_surfaces(a::AbstractLinePrimitive, b::AbstractLinePrimitive) = get_cut_lines(a,b)

@@ -1,4 +1,4 @@
-struct CylindricalAnnulus{T,TR,TP,TZ} <: AbstractSurfacePrimitive{T}
+struct CylindricalAnnulus{T,TR,TP,TZ} <: AbstractRotationalSurfacePrimitive{T}
     r::TR
     φ::TP
     z::TZ
@@ -51,6 +51,10 @@ get_r_limits(a::CylindricalAnnulus{T, <:Union{T, AbstractInterval{T}}, <:Any}) w
 
 get_φ_limits(a::CylindricalAnnulus{T, <:Any, Nothing}) where {T} = (T(0), T(2π), true)
 get_φ_limits(a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}) where {T} = (a.φ.left, a.φ.right, false)
+
+in(p::PlanarPoint, a::CylindricalAnnulus{T, <:Any, Nothing}; check_on_plane = true) where {T} =  _in_planar_r(p, a.r)
+
+in(p::PlanarPoint, a::CylindricalAnnulus{T, <:Any, <:AbstractInterval}; check_on_plane = true) where {T} =  _in_planar_r(p, a.r) && _in_planar_α(p, a.φ)
 
 in(p::AbstractCoordinatePoint, a::CylindricalAnnulus{T, <:Any, Nothing}; check_on_plane = true) where {T} = _eq_z(p, a.z) && _in_cyl_r(p, a.r)
 
@@ -154,15 +158,7 @@ function merge(a1::CylindricalAnnulus{T}, a2::CylindricalAnnulus{T}) where {T}
     end
 end
 
-function Plane(a::CylindricalAnnulus{T}) where {T}
-    rMin::T, rMax::T = get_r_limits(a)
-    Plane(T,
-          CartesianPoint{T}(0, 0, a.z),
-          CartesianPoint{T}(rMax, 0, a.z),
-          CartesianPoint{T}(0, rMax, a.z),
-          nothing
-          )
-end
+Plane(a::CylindricalAnnulus) = Plane(Val(:z), a.z)
 
 get_decomposed_lines(a::CylindricalAnnulus{T, T, Nothing}) where {T} = AbstractLinePrimitive[Circle(a.r, PlanarPoint{T}(0,0))]
 
@@ -194,3 +190,10 @@ function get_decomposed_lines(a::CylindricalAnnulus{T, <:AbstractInterval{T}, <:
                           Arc(T, rMax, PlanarPoint{T}(0,0), a.φ)
                           ]
 end
+
+function LineSegment(a::CylindricalAnnulus{T}) where {T}
+    rMin::T, rMax::T = get_r_limits(a)
+    LineSegment(T, PlanarPoint{T}(rMin,a.z), PlanarPoint{T}(rMax,a.z))
+end
+
+get_cross_section(a::CylindricalAnnulus) = LineSegment(a)

@@ -21,14 +21,19 @@ function get_surface_vector(l::LineSegment{T,PlanarPoint{T}}) where {T}
     return PlanarVector{T}(-v.v, v.u)
 end
 
-get_midpoint(l::LineSegment{T}) where {T} = (l.p2 + l.p1)./2
+get_midpoint(l::LineSegment{T}) where {T} = (l.p2 + l.p1)/2
 
 function in(point::Union{PlanarPoint{T}, CartesianPoint{T}}, l::LineSegment{T}) where {T}
-    lv = l.p2 - l.p1
-    length = norm(lv)
-    lvec = (lv)/length
-    v = point - l.p1
-    isapprox(norm(cross(v, lvec)), 0, atol = geom_atol_zero(T)) && 0 < dot(v, lvec) < length
+    if point in (l.p2, l.p1)
+        return true
+    else
+        lv = l.p2 - l.p1
+        length = norm(lv)
+        lvec = (lv)/length
+        v = point - l.p1
+        tol = geom_atol_zero(T)
+        return isapprox(norm(cross(v, lvec)), T(0), atol = tol) && -tol ≤ dot(v, lvec) ≤ length + tol
+    end
 end
 
 function distance_to_line(point::Union{PlanarPoint{T}, CartesianPoint{T}},
