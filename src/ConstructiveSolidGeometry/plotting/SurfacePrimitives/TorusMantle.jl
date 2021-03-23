@@ -22,6 +22,7 @@ end
 function mesh(t::TorusMantle{T}; n = 30) where {T <: AbstractFloat}
     φMin::T, φMax::T, _ = get_φ_limits(t)
     θMin::T, θMax::T, _ = get_θ_limits(t)
+
     θrange = range(θMin, θMax, length = n + 1)
     sθrange = sin.(θrange)
     cθrange = cos.(θrange)

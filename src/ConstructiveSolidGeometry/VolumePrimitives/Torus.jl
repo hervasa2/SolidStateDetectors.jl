@@ -98,6 +98,8 @@ function get_decomposed_surfaces(t::Torus{T, T, <:Any, <:AbstractInterval, <:Abs
     surfaces
 end
 
+get_cross_section(t::Torus{T}, φ::Real) where {T} = ToroidalAnnulus(t, φ = T(φ))
+
 function sample(t::Torus{T}, step::Real) where {T}
     r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
     θMin::T, θMax::T, _ = get_θ_limits(t)

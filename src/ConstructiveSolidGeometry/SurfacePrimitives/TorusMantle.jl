@@ -125,19 +125,32 @@ function cut(t::TorusMantle{T}, val::Real, ::Val{:θ}) where {T}
     end
 end
 
+set_φ_interval(t::TorusMantle{T}, φ::Union{Nothing, <:AbstractInterval{T}}) where {T} = TorusMantle(T, t.r_torus, t.r_tube, φ, t.θ, t.z)
+
 function merge(t1::TorusMantle{T}, t2::TorusMantle{T}) where {T}
     if t1 == t2
         return t1, true
     else
-        if t1.z == t2.z && t1.r_torus == t2.r_torus && t1.r_tube == t2.r_tube && t1.φ == t2.φ
-            φMin1::T, φMax1::T, _ = get_φ_limits(t1)
-            θ = union_angular_intervals(get_angular_interval(T, t1.θ), get_angular_interval(T, t2.θ))
-            if !isnothing(θ)
-                return TorusMantle(t1.r_torus, t1.r_tube, φMin1, φMax1, θ.left, θ.right, t1.z), true
+        if t1.z == t2.z && t1.r_torus == t2.r_torus && t1.r_tube == t2.r_tube
+            if t1.φ == t2.φ
+                union_θ = union_angular_intervals(get_angular_interval(T, t1.θ), get_angular_interval(T, t2.θ))
+                if !isnothing(union_θ)
+                    θ = mod(union_θ.right - union_θ.left, T(2π)) == 0 ? nothing : union_θ
+                    return TorusMantle(T, t1.r_torus, t1.r_tube, t1.φ, θ, t1.z), true
+                else
+                    return t1, false
+                end
+            elseif t1.θ == t2.θ
+                union_φ = union_angular_intervals(get_angular_interval(T, t1.φ), get_angular_interval(T, t2.φ))
+                if !isnothing(union_φ)
+                    φ = mod(union_φ.right - union_φ.left, T(2π)) == 0 ? nothing : union_φ
+                    return TorusMantle(T, t1.r_torus, t1.r_tube, φ, t1.θ, t1.z), true
+                else
+                    return t1, false
+                end
             else
                 return t1, false
             end
-        #elseif mergeinphi
         else
             return t1, false
         end

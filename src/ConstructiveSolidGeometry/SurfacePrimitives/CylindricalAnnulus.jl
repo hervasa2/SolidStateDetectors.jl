@@ -137,6 +137,8 @@ function cut(a::CylindricalAnnulus{T}, val::Real, ::Val{:r}) where {T}
     end
 end
 
+set_φ_interval(a::CylindricalAnnulus{T}, φ::Union{Nothing, <:AbstractInterval{T}}) where {T} = CylindricalAnnulus(T, a.r, φ, a.z)
+
 function merge(a1::CylindricalAnnulus{T}, a2::CylindricalAnnulus{T}) where {T}
     if a1 == a2
         return a1, true
@@ -151,7 +153,14 @@ function merge(a1::CylindricalAnnulus{T}, a2::CylindricalAnnulus{T}) where {T}
             else
                 return a1, false
             end
-        #elseif mergeinphi
+        elseif a1.r == a2.r && a1.z == a2.z
+            union = union_angular_intervals(get_angular_interval(T, a1.φ), get_angular_interval(T, a2.φ))
+            if !isnothing(union)
+                φ = mod(union.right - union.left, T(2π)) == 0 ? nothing : union
+                return CylindricalAnnulus(T, a1.r, φ, a1.z), true
+            else
+                return a1, false
+            end
         else
             return a1, false
         end

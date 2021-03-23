@@ -44,12 +44,86 @@ in(p::Union{AbstractCoordinatePoint, AbstractPlanarPoint}, csg::PlanarSurfaceInt
 
 get_plane_φ(ps::Union{PlanarSurfaceDifference{<:Any, <:Any, <:Any, Val{:φ}}, PlanarSurfaceIntersection{<:Any, <:Any, <:Any, Val{:φ}}}) = get_plane_φ(ps.a)
 
+
+function attempt_reduce_to_primitive(ps::Union{PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}}, PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}}) where {T}
+    φ = get_plane_φ(ps)
+    Arcs = filter(l -> typeof(l) <: Arc{T}, ps.lines)
+    Segs = filter(l -> typeof(l) <: Line{T, <:Any, Val{:seg}}, ps.lines)
+    nSegs = length(Segs)
+    nArcs = length(Arcs)
+    if nArcs == 0
+        vertices = unique(append!([geom_round(l.p1) for l in ps.lines], [geom_round(l.p2) for l in ps.lines]))
+        sort!(vertices, by = p -> p.v)
+        if length(vertices) == 3
+            zMin, zMax = vertices[1].v, vertices[3].v
+            if vertices[1].v == vertices[2].v
+                rtopMin, rtopMax = vertices[3].u, vertices[3].u
+                rbotMin, rbotMax = minmax(vertices[1].u, vertices[2].u)
+                return ConalPlane(rbotMin, rbotMax, rtopMin, rtopMax, φ, zMin, zMax)
+            elseif vertices[2].v == vertices[3].v
+                rtopMin, rtopMax = minmax(vertices[2].u, vertices[3].u)
+                rbotMin, rbotMax = vertices[1].u, vertices[1].u
+                return ConalPlane(rbotMin, rbotMax, rtopMin, rtopMax, φ, zMin, zMax)
+            else
+                return ps
+            end
+        elseif length(vertices) == 4
+            zMin, zMax = vertices[1].v, vertices[4].v
+            if vertices[1].v == vertices[2].v && vertices[3].v == vertices[4].v
+                rtopMin, rtopMax = minmax(vertices[3].u, vertices[4].u)
+                rbotMin, rbotMax = minmax(vertices[1].u, vertices[2].u)
+                return ConalPlane(rbotMin, rbotMax, rtopMin, rtopMax, φ, zMin, zMax)
+            else
+                return ps
+            end
+        else
+            return ps
+        end
+    elseif nArcs == 1 && nSegs == 0
+        return ps
+    elseif nArcs == 1 && nSegs == 2
+        return ps
+    elseif nArcs == 2 && nSegs == 2
+        return ps
+    else
+        return ps
+    end
+end
+
 #not for unions
 sample(ps::AbstractConstructivePlanarSurface{T}, step::Union{Real, NTuple{3,Int}}) where {T} = filter!(x -> x in ps, sample(ps.a, step))
 
+function sample_border(ps::AbstractConstructivePlanarSurface{T}, sampling) where {T}
+    samples = [ point
+    for line in ps.lines
+    for point in sample(line, sampling)  ]
+end
+
+function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n_arc::Int) where {T}
+    samples = [ point
+    for line in ps.lines
+    for point in get_nodes(line, n_arc) ]
+end
+
+function get_midpoint(ps::Union{PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}}, PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}}) where {T}
+    if length(ps.lines) ≥ 1
+        φ = get_plane_φ(ps)
+        line = ps.lines[1]
+        tol = 10*geom_atol_zero(T)
+        pt = get_midpoint(line)
+        n = get_surface_vector(line, pt)
+        pt_pos = pt + tol*n
+        pt_neg = pt - tol*n
+        return pt_pos in ps ? CartesianPoint(CylindricalPoint{T}(pt_pos.u, φ, pt_pos.v)) :
+            CartesianPoint(CylindricalPoint{T}(pt_neg.u, φ, pt_neg.v))
+    else
+        @error "Constructive surface has no lines!"
+    end
+end
+
 Plane(ps::AbstractConstructivePlanarSurface) = Plane(ps.a)
 
-get_surface_vector(ps::AbstractConstructivePlanarSurface) = get_surface_vector(ps.a)
+get_surface_vector(ps::AbstractConstructivePlanarSurface, point::AbstractCoordinatePoint) = get_surface_vector(ps.a, point)
 
 function distance_to_surface(point::PlanarPoint{T}, ps::AbstractConstructivePlanarSurface{T})::T where {T}
     if point in ps
@@ -81,15 +155,12 @@ function distance_to_surface(point::AbstractCoordinatePoint{T}, ps::AbstractCons
     end
 end
 
-PlanarSurfaceAtφ{T} = Union{
-                                ToroidalAnnulus{T},
-                                ConalPlane{T},
-                                PlanarSurfaceDifference{T, <:Any, <:Any, Val{:z}},
-                                PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:z}}
-                            }
-
-PlanarSurfaceAtz{T} = Union{
-                                CylindricalAnnulus{T},
-                                PlanarSurfaceDifference{T, <:Any, <:Any, Val{:z}},
-                                PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:z}}
-                            }
+function merge(ps1::AbstractConstructivePlanarSurface, ps2::AbstractConstructivePlanarSurface)
+    if ps1 == ps2
+        return ps1, true
+    elseif get_plane_φ(ps1) == get_plane_φ(ps2) && length(ps1.lines) == length(ps2.lines) == sum([l in ps2.lines for l in ps1.lines])
+        return ps1, true
+    else
+        return ps1, false
+    end
+end

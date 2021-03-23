@@ -64,6 +64,14 @@ function sample(t::ToroidalAnnulus{T}, Nsamps::NTuple{3,Int}) where {T}
     ]
 end
 
+function get_midpoint(t::ToroidalAnnulus{T}) where {T}
+    r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
+    θMin::T, θMax::T, _ = get_θ_limits(t)
+    sθMid::T, cθMid::T = sincos((θMax + θMin)/2)
+    r_tubeMid = (r_tubeMax + r_tubeMin)/2
+    CartesianPoint(CylindricalPoint{T}(t.r_torus+r_tubeMid*cθMid,t.φ,r_tubeMid*sθMid+t.z))
+end
+
 Plane(t::ToroidalAnnulus) = Plane(Val(:φ), t.φ)
     #r_tubeMin::T, r_tubeMax::T = get_r_tube_limits(t)
     #sφ, cφ = sincos(t.φ)
@@ -73,6 +81,7 @@ Plane(t::ToroidalAnnulus) = Plane(Val(:φ), t.φ)
           CartesianPoint{T}(t.r_torus*cφ, t.r_torus*sφ, r_tubeMax + t.z),
           nothing
           )=#
+get_surface_vector(t::ToroidalAnnulus) = get_surface_vector(Plane(Val(:φ), t.φ))
 
 function distance_to_surface(point::AbstractCoordinatePoint{T}, t::ToroidalAnnulus{T})::T where {T}
     pct = CartesianPoint(point)
@@ -86,5 +95,10 @@ end
 get_decomposed_lines(t::ToroidalAnnulus{T}) where {T} =
     translate.(get_decomposed_lines(CylindricalAnnulus(T, t.r_tube, t.θ, T(0))), (PlanarVector{T}(t.r_torus, t.z),))
 
-#get_midpoint
-#get_surface_vector
+function merge(t1::ToroidalAnnulus, t2::ToroidalAnnulus)
+    if t1 == t2
+        return t1, true
+    else
+        return t1, false
+    end
+end

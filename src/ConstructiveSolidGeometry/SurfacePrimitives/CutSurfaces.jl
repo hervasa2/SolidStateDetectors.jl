@@ -142,4 +142,62 @@ function get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::Abstrac
     end
 end
 
-get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::AbstractPlanarSurfacePrimitive{T}) where {T} = cut(s1, get_plane_φ(s2), Val(:φ))
+get_cut_surfaces(s1::Union{
+                               AbstractPlanarSurfacePrimitive{T},
+                               PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}},
+                               PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}
+                           },
+                 s2::AbstractRotationalSurfacePrimitive{T}
+                 ) where {T} = [s1]
+
+function get_cut_surfaces(s1::Union{
+                                           AbstractPlanarSurfacePrimitive{T},
+                                           PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}},
+                                           PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}
+                                    },
+                          s2::Union{
+                                           AbstractPlanarSurfacePrimitive{T},
+                                           PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}},
+                                           PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}
+                                    }
+                          ) where {T}
+    if s1 == s2
+        return [s1]
+    elseif get_plane_φ(s1) == get_plane_φ(s2)
+        intersection = PlanarSurfaceIntersection(T, s1, s2, Val(:φ))
+        difference = PlanarSurfaceDifference(T, s1, s2, Val(:φ))
+        if length(intersection.lines) > 0 && length(difference.lines) > 0
+            return [attempt_reduce_to_primitive(difference), attempt_reduce_to_primitive(intersection)]
+        else
+            return [s1]
+        end
+    else
+        return [s1]
+    end
+end
+
+#only check if in φ range, requires merge to reduce number of surfaces
+get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T},
+                 s2::Union{
+                                AbstractPlanarSurfacePrimitive{T},
+                                PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}},
+                                PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}
+                          }
+                ) where {T} = cut(s1, get_plane_φ(s2), Val(:φ))
+
+#does all checks, but slow
+#=function get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::AbstractPlanarSurfacePrimitive{T}) where {T}
+    φ2 = get_plane_φ(s2)
+    if _in_angular_interval_open(φ2, get_angular_interval(T, s1.φ))
+        l1 = get_cross_section(s1)
+        lines2 = get_decomposed_lines(s2)
+        cuts = 0
+        for l2 in lines2
+            l1cuts = get_cut_lines(l1, l2)
+            cuts = cuts + length(l1cuts)
+        end
+        return cuts == length(lines2) ? [s1] : cut(s1, φ2, Val(:φ))
+    else
+        return [s1]
+    end
+end=#

@@ -85,3 +85,15 @@ function merge(a1::Arc{T}, a2::Arc{T}) where {T}
         end
     end
 end
+
+function sample(a::Arc{T}, step::AbstractFloat) where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in (a.r == 0 ? αMin : αMin:step/a.r:αMax)]
+end
+
+function sample(a::Arc{T}, Nsamps::Int) where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in range(αMin, αMax, length = Nsamps)]
+end
+
+get_nodes(a::Arc{T}, n::Int) where {T} = sample(a, n)

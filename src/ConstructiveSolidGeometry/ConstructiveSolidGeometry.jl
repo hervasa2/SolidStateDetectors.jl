@@ -31,7 +31,7 @@ module ConstructiveSolidGeometry
     abstract type AbstractLinePrimitive{T} <: AbstractPrimitive{T} end
 
     abstract type AbstractConstructiveGeometry{T} <: AbstractGeometry{T} end
-
+    #AbstractSurface AbstractVolume
     abstract type AbstractConstructiveSurface{T} <: AbstractConstructiveGeometry{T} end
     abstract type AbstractConstructivePlanarSurface{T} <: AbstractConstructiveSurface{T} end
 

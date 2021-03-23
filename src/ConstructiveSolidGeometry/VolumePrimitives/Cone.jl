@@ -30,7 +30,7 @@ function Cone(;rbotMin = 0, rbotMax = 1, rtopMin = 0, rtopMax = 1, φMin = 0, φ
         else # Cone
             (T(rbotMin)..T(rbotMax), T(rtopMin)..T(rtopMax))
         end
-    φ = mod(T(φMax) - T(φMin), T(2π)) ≥ 0 ? nothing : T(φMin)..T(φMax)
+    φ = mod(T(φMax) - T(φMin), T(2π)) == 0 ? nothing : T(φMin)..T(φMax)
     z = zMax == -zMin ? T(zMax) : T(zMin)..T(zMax)
     Cone( T, r, φ, z)
 end
@@ -152,6 +152,8 @@ function get_decomposed_surfaces(c::Cone{T, <:Union{<:AbstractInterval{T}, Tuple
     push!(surfaces, ConeMantle(c, rbot = rbotMin, rtop = rtopMin))
     surfaces
 end
+
+get_cross_section(c::Cone{T}, φ::Real) where {T} = ConalPlane(c, φ = T(φ))
 
 function sample(c::Cone{T}, step::Real) where {T}
     zMin::T, zMax::T = get_z_limits(c)

@@ -21,6 +21,10 @@ function geom_round(pt::CartesianPoint{T})::CartesianPoint{T} where {T <: Real}
     return CartesianPoint{T}( geom_round(pt.x), geom_round(pt.y), geom_round(pt.z)  )
 end
 
+function geom_round(pt::PlanarPoint{T})::PlanarPoint{T} where {T <: Real}
+    return PlanarPoint{T}( geom_round(pt.u), geom_round(pt.v)  )
+end
+
 function geom_round(vpt::Vector{CP}) where {CP <: AbstractCoordinatePoint}
     [geom_round(pt) for pt in vpt]
 end

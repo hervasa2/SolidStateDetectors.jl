@@ -1,7 +1,7 @@
 function get_decomposed_surfaces(g::AbstractConstructiveGeometry)
     cutsurfs_A = get_cut_surfaces(g.a,g.b)
     cutsurfs_B = get_cut_surfaces(g.b,g.a)
-    real_surfs = AbstractSurfacePrimitive[]
+    real_surfs = AbstractGeometry[]
     for surf in cutsurfs_A
         is_real_surface(surf, g) ? push!(real_surfs, surf) : nothing
     end
@@ -11,7 +11,7 @@ function get_decomposed_surfaces(g::AbstractConstructiveGeometry)
     return consolidate_surfaces(real_surfs)
 end
 
-function is_real_surface(surf::AbstractPrimitive{T}, g::AbstractGeometry{T}) where {T}
+function is_real_surface(surf::AbstractGeometry{T}, g::AbstractGeometry{T}) where {T}
     #assumes surf is cut such that it is contained in g
     tol = 10*geom_atol_zero(T)
     pt = get_midpoint(surf)
@@ -21,7 +21,7 @@ function is_real_surface(surf::AbstractPrimitive{T}, g::AbstractGeometry{T}) whe
     (pt_pos in g && !(pt_neg in g)) || (pt_neg in g && !(pt_pos in g))
 end
 
-function consolidate_surfaces(surfs::Array{<:AbstractPrimitive})
+function consolidate_surfaces(surfs::Array{<:Union{AbstractGeometry, AbstractPrimitive}})
     surfs_copy = deepcopy(surfs)
     if length(surfs_copy) > 1
         consolidated_surfs = eltype(surfs)[]

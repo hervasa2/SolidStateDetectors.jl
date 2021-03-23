@@ -39,7 +39,13 @@ function _is_edge_of_angular_interval_union(val::T, α::AbstractInterval, β::Ab
 
 function union_angular_intervals(α::AbstractInterval{T}, β::AbstractInterval{T}) where {T} #if no intersection will return nothing
     tol = 10*geom_atol_zero(T)
-    if α.left ≥ 0 && β.left ≥ 0 && α.right < T(2π) && β.right < T(2π)
+    if α == β
+        return α
+    elseif α.left == α.right && _in_angular_interval_closed(α.left, β)
+        return β
+    elseif β.left == β.right && _in_angular_interval_closed(β.left, α)
+        return α
+    elseif α.left ≥ 0 && β.left ≥ 0 && α.right ≤ T(2π) && β.right ≤ T(2π)
         return isempty(α ∩ β) ? nothing : α ∪ β
     else
         edges = 0
@@ -53,7 +59,7 @@ function union_angular_intervals(α::AbstractInterval{T}, β::AbstractInterval{T
             edges == 0 ? θ1 = α.right : θ2 = α.right
             edges = edges + 1
         end
-        if _is_edge_of_angular_interval_union(β.left, α, β)
+        if _is_edge_of_angular_interval_union(β.left, α, β) && mod(β.left, T(2π)) ≠ mod(α.left, T(2π)) && mod(β.left, T(2π)) ≠ mod(α.right, T(2π))
             if edges == 0
                 θ1 = β.left
             elseif edges == 1
@@ -61,7 +67,7 @@ function union_angular_intervals(α::AbstractInterval{T}, β::AbstractInterval{T
             end
             edges = edges + 1
         end
-        if edges < 3 && _is_edge_of_angular_interval_union(β.right, α, β)
+        if edges < 3 && _is_edge_of_angular_interval_union(β.right, α, β) && mod(β.right, T(2π)) ≠ mod(α.left, T(2π)) && mod(β.right, T(2π)) ≠ mod(α.right, T(2π))
             edges == 1 ? θ2 = β.right : nothing
             edges = edges + 1
         end
@@ -75,7 +81,7 @@ function union_angular_intervals(α::AbstractInterval{T}, β::AbstractInterval{T
 end
 
 function is_intersection_an_interval(α::AbstractInterval{T}, β::AbstractInterval{T}) where {T}
-    if mod(α.right - α.left, T(2π)) == 0 || mod(β.right - β.left, T(2π)) == 0
+    if (mod(α.right - α.left, T(2π)) == 0 || mod(β.right - β.left, T(2π)) == 0)
         return true
     elseif isnothing(union_angular_intervals(α, β))
         return false

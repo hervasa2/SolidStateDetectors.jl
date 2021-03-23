@@ -50,6 +50,15 @@ function sample(c::ConalPlane{T}, Nsamps::NTuple{3,Int}) where {T}
     ]
 end
 
+function get_midpoint(c::ConalPlane{T}) where {T}
+    zMin::T, zMax::T = get_z_limits(c)
+    sφ::T, cφ::T = sincos(c.φ)
+    zMid = (zMax + zMin)/2
+    r = get_r_at_z(c, zMid)
+    rMid = (_left_radial_interval(r) + _right_radial_interval(r))/2
+    CartesianPoint{T}(rMid*cφ, rMid*sφ, zMid)
+end
+
 function get_vertices(c::ConalPlane{T}) where {T}
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
     zMin::T, zMax::T = get_z_limits(c)
@@ -116,6 +125,7 @@ Plane(c::ConalPlane) = Plane(Val(:φ), c.φ)
     else
         return Plane(T, v...)
     end=#
+get_surface_vector(c::ConalPlane) = get_surface_vector(Plane(Val(:φ), c.φ))
 
 function get_decomposed_lines(c::ConalPlane{T}) where {T} #plane and get_decomposed_lines have to be defined with the same origin
     rbotMin::T, rbotMax::T, rtopMin::T, rtopMax::T = get_r_limits(c)
@@ -142,5 +152,10 @@ function get_decomposed_lines(c::ConalPlane{T}) where {T} #plane and get_decompo
     end
 end
 
-#get_midpoint
-#get_surface_vector
+function merge(c1::ConalPlane, c2::ConalPlane)
+    if c1 == c2
+        return c1, true
+    else
+        return c1, false
+    end
+end

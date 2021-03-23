@@ -28,6 +28,8 @@ function mesh(t::ToroidalAnnulus{T}; n = 30) where {T <: AbstractFloat}
     θMin::T, θMax::T, _ = get_θ_limits(t)
     r_tube = range(r_tubeMin, r_tubeMax, length = 2)
     sφ, cφ = sincos(t.φ)
+    #f = (θMax - θMin)/(2π)
+    #n = Int(ceil(n*f))
     θrange = range(θMin, θMax, length = n + 1)
     sθrange = sin.(θrange)
     cθrange = cos.(θrange)

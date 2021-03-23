@@ -31,7 +31,7 @@ end
 Line(l::Line{T}) where {T} = Line(T, l.p1, l.p2)
 
 get_line_vector(l::Line{T,PlanarPoint{T}}) where {T} = normalize(PlanarVector{T}(l.p2 - l.p1))
-get_line_vector(l::Line{T,CartesianPoint{T}}) where {T} = normalize(CartesianPointVector{T}(l.p2 - l.p1))
+get_line_vector(l::Line{T,CartesianPoint{T}}) where {T} = normalize(CartesianVector{T}(l.p2 - l.p1))
 
 function in(point::Union{PlanarPoint, CartesianPoint}, l::Line{T, <:Any, Val{:inf}}) where {T}
     lvec = l.p2 - l.p1
@@ -164,3 +164,43 @@ function cut(l::Line{T,<:Any,Val{:seg}}, point::Union{CartesianPoint{T}, PlanarP
         end
     end
 end
+
+function merge(l1::Line{T,<:Any,Val{:seg}}, l2::Line{T,<:Any,Val{:seg}}) where {T}
+    if isapprox(dot(get_line_vector(l1), get_line_vector(l2)), T(1), atol = geom_atol_zero(T))
+        if l2.p1 in l1
+            LineSegment(T, l1.p1, l2.p2), true
+        elseif l2.p2 in l1
+            LineSegment(T, l2.p1, l1.p2), true
+        else
+            return l1, false
+        end
+    elseif isapprox(dot(get_line_vector(l1), get_line_vector(l2)), T(-1), atol = geom_atol_zero(T))
+        if l2.p1 in l1
+            LineSegment(T, l1.p2, l2.p2), true
+        elseif l2.p1 in l1
+            LineSegment(T, l2.p1, l1.p1), true
+        else
+            return l1, false
+        end
+    else
+        return l1, false
+    end
+end
+
+function sample(l::Line{T,<:Any,Val{:seg}}, step::AbstractFloat) where {T}
+    L = norm(l.p2 - l.p1)
+    lvec = get_line_vector(l)
+    return [l.p1 + δ*lvec for δ in 0:step:L]
+end
+
+function sample(l::Line{T,<:Any,Val{:seg}}, Nsamps::Int) where {T}
+    if Nsamps ≤ 1
+        return l.p1
+    else
+        L = norm(l.p2 - l.p1)
+        lvec = get_line_vector(l)
+        return [l.p1 + δ*lvec for δ in range(0, L, length = Nsamps)]
+    end
+end
+
+get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Int) where {T} = [l.p1, l.p2]

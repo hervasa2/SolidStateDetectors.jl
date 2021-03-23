@@ -160,20 +160,7 @@ function cut(c::ConeMantle{T}, val::Real, ::Val{:z}) where {T}
     end
 end
 
-function cut(c::ConeMantle{T}, val::Real, ::Val{:φ}) where {T}
-    zMin::T, zMax::T = get_z_limits(c)
-    rbot::T, rtop::T = get_r_limits(c)
-    φMin::T, φMax::T, _ = get_φ_limits(c)
-    if _in_angular_interval_open(val, c.φ)
-        val_in = mod(val - φMin, T(2π)) + φMin
-        return ConeMantle{T}[
-                                ConeMantle(rbot, rtop, φMin, T(val_in), zMin, zMax),
-                                ConeMantle(rbot, rtop, T(val_in), φMax, zMin, zMax)
-                             ]
-    else
-        return ConeMantle{T}[c]
-    end
-end
+set_φ_interval(c::ConeMantle{T}, φ::Union{Nothing, <:AbstractInterval{T}}) where {T} = ConeMantle(T, c.r, φ, c.z)
 
 function merge(c1::ConeMantle{T}, c2::ConeMantle{T}) where {T}
     if c1 == c2
@@ -190,7 +177,14 @@ function merge(c1::ConeMantle{T}, c2::ConeMantle{T}) where {T}
             else
                 return c1, false
             end
-        #elseif mergeinphi
+        elseif c1.r == c2.r && c1.z == c2.z
+            union = union_angular_intervals(get_angular_interval(T, c1.φ), get_angular_interval(T, c2.φ))
+            if !isnothing(union)
+                φ = mod(union.right - union.left, T(2π)) == 0 ? nothing : union
+                return ConeMantle(T, c1.r, φ, c1.z), true
+            else
+                return c1, false
+            end
         else
             return c1, false
         end
