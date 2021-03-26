@@ -1,3 +1,4 @@
+include("MeshTriangle.jl")
 include("Plane.jl")
 include("ConalPlane.jl")
 include("CylindricalAnnulus.jl")

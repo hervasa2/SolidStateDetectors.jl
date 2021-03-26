@@ -13,7 +13,7 @@ module ConstructiveSolidGeometry
     using StaticArrays
     using Unitful
 
-    import Base: in, *, +, -, &, size
+    import Base: in, *, +, -, &, size, ==
 
     abstract type AbstractCoordinateSystem end
     abstract type Cartesian <: AbstractCoordinateSystem end

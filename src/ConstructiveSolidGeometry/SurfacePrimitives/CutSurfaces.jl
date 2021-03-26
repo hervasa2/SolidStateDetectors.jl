@@ -17,8 +17,6 @@ function cut(surf::AbstractPrimitive, val::Tuple{T,T}, cutdir::Union{Val{:point}
 end
 
 #=
-get_cut_surfaces(c1::CylindricalAnnulus{T}, c2::CylindricalAnnulus{T}) where {T} = [c1]
-
 function get_cut_surfaces(c::CylindricalAnnulus{T}, m::ConeMantle{T}) where {T}
     if is_intersection_an_interval(get_angular_interval(T, c.φ), get_angular_interval(T, m.φ))
         zMin::T, zMax::T = get_z_limits(m)
@@ -132,6 +130,8 @@ function get_cut_surfaces(t1::TorusMantle{T}, t2::TorusMantle{T}) where {T}
     end
 end
 =#
+
+get_cut_surfaces(c1::CylindricalAnnulus{T}, c2::CylindricalAnnulus{T}) where {T} = [c1]
 
 function get_cut_surfaces(s1::AbstractRotationalSurfacePrimitive{T}, s2::AbstractRotationalSurfacePrimitive{T}) where {T}
     if is_intersection_an_interval(get_angular_interval(T, s1.φ), get_angular_interval(T, s2.φ))

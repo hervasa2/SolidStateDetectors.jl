@@ -203,4 +203,4 @@ function sample(l::Line{T,<:Any,Val{:seg}}, Nsamps::Int) where {T}
     end
 end
 
-get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Int) where {T} = [l.p1, l.p2]
+get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Int) where {T} = sample(l, n)

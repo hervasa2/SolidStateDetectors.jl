@@ -100,9 +100,20 @@ function sample_border(ps::AbstractConstructivePlanarSurface{T}, sampling) where
 end
 
 function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n_arc::Int) where {T}
-    samples = [ point
-    for line in ps.lines
-    for point in get_nodes(line, n_arc) ]
+    Arcs = filter(l -> typeof(l) <: Arc{T}, ps.lines)
+    Segs = filter(l -> typeof(l) <: Line{T, <:Any, Val{:seg}}, ps.lines)
+    nSegs = length(Segs)
+    nArcs = length(Arcs)
+    n_seg = max(2, 1 + Int(floor(n_arc*nArcs/nSegs)))
+    arc_nodes = unique([ geom_round(point)
+                        for arc in Arcs
+                        for point in get_nodes(arc, n_arc) ]
+                      )
+    seg_nodes = unique([ geom_round(point)
+                        for seg in Segs
+                        for point in get_nodes(seg, n_seg) ]
+                      )
+    unique(append!(seg_nodes, arc_nodes))
 end
 
 function get_midpoint(ps::Union{PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}}, PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}}) where {T}

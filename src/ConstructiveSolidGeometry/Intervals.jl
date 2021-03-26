@@ -45,7 +45,7 @@ function union_angular_intervals(α::AbstractInterval{T}, β::AbstractInterval{T
         return β
     elseif β.left == β.right && _in_angular_interval_closed(β.left, α)
         return α
-    elseif α.left ≥ 0 && β.left ≥ 0 && α.right ≤ T(2π) && β.right ≤ T(2π)
+    elseif α.left ≥ 0 && β.left ≥ 0 && α.right < T(2π) && β.right < T(2π) #less not less or equal to 2pi
         return isempty(α ∩ β) ? nothing : α ∪ β
     else
         edges = 0
