@@ -104,3 +104,8 @@ function get_nodes(a::Arc{T}, Nsamps::Int) where {T}
         samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in range(αMin, αMax, length = Nsamps)]
     end
 end
+
+function perimeter(a::Arc{T})::T where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    abs(αMax - αMin)*a.r
+end

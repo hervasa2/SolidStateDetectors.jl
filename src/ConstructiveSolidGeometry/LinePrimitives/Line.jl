@@ -203,4 +203,6 @@ function sample(l::Line{T,<:Any,Val{:seg}}, Nsamps::Int) where {T}
     end
 end
 
-get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Int) where {T} = sample(l, n)
+get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Real) where {T} = sample(l, n)
+
+perimeter(l::Line{T,<:Any,Val{:seg}}) where {T} = T(norm(l.p2 - l.p1))

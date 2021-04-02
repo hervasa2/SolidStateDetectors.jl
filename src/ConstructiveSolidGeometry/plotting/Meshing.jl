@@ -30,15 +30,15 @@ size(m::Mesh{T}) where {T} = size(m.x)
 
 function get_plot_meshes(v::Union{AbstractConstructiveGeometry{T}, AbstractVolumePrimitive{T}}; n = 30) where {T <: AbstractFloat}
   surfaces = get_decomposed_surfaces(v)
-  meshes = Mesh{T}[]
+  meshes = []
   for surf in surfaces
       push!(meshes, mesh(surf; n = n))
   end
   meshes
 end
 
-function get_plot_meshes(s::AbstractSurfacePrimitive{T}; n = 30) where {T <: AbstractFloat}
-  meshes = Mesh{T}[]
+function get_plot_meshes(s::Union{AbstractSurfacePrimitive{T}, AbstractConstructivePlanarSurface}; n = 30) where {T <: AbstractFloat}
+  meshes = []
   push!(meshes, mesh(s; n = n))
   meshes
 end

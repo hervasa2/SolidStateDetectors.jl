@@ -99,12 +99,14 @@ function sample_border(ps::AbstractConstructivePlanarSurface{T}, sampling) where
     for point in sample(line, sampling)  ]
 end
 
-function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n_arc::Int) where {T}
+perimeter(ps::AbstractConstructivePlanarSurface{T}) where {T} = sum([ perimeter(line) for line in ps.lines ])
+
+function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n_arc::Real) where {T}
     Arcs = filter(l -> typeof(l) <: Arc{T}, ps.lines)
     Segs = filter(l -> typeof(l) <: Line{T, <:Any, Val{:seg}}, ps.lines)
     nSegs = length(Segs)
     nArcs = length(Arcs)
-    n_seg = max(2, 1 + Int(floor(n_arc*nArcs/nSegs)))
+    n_seg = nArcs == 0 ? n_arc : max(2, 1 + Int(floor(n_arc*nArcs/nSegs)))
     arc_nodes = unique([ geom_round(point)
                         for arc in Arcs
                         for point in get_nodes(arc, n_arc) ]

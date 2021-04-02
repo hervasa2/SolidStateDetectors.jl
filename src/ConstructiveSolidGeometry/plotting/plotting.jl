@@ -41,7 +41,6 @@ include("LinePrimitives/LinePrimitives.jl")
 end
 
 @recipe function f(g::AbstractConstructiveGeometry{T}; SSD_style = :wireframe, n = 30) where {T}
-
     seriescolor --> :orange
 
     @series begin

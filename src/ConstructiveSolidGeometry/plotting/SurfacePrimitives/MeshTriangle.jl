@@ -172,11 +172,43 @@ end
 
 is_inside_triangle(tri::MeshTriangle, cps::AbstractConstructivePlanarSurface) = get_midpoint(tri) in cps
 
-function mesh(cps::AbstractConstructivePlanarSurface, n_arc::Real)
+function trimesh(cps::AbstractConstructivePlanarSurface, n_arc::Real)
     nodes_object = get_nodes(cps, n_arc)
     nodes, triangles = initialize_mesh(nodes_object)
     for node in nodes_object
         update_mesh!(nodes, triangles, node)
     end
     return nodes_object, filter(t -> is_inside_triangle(t, cps), triangles)
+end
+
+struct TriMesh{T}
+    x::Array
+    y::Array
+    z::Array
+end
+
+function mesh(cps::AbstractConstructivePlanarSurface{T}; n = 30) where {T <: AbstractFloat}
+    _, triangles = trimesh(cps, 20)
+    x = []
+    y = []
+    z = []
+    plane = Plane(cps)
+    R = RotXY(0.0000001,0.0000001)
+    for tri in triangles
+        p1 = R*get_cartesian_point(tri.p1, plane)
+        p2 = R*get_cartesian_point(tri.p2, plane)
+        p3 = R*get_cartesian_point(tri.p3, plane)
+        push!(x, [p1.x, p2.x, p3.x])
+        push!(y, [p1.y, p2.y, p3.y])
+        push!(z, [p1.z, p2.z, p3.z])
+    end
+    TriMesh{T}(x, y, z)
+end
+
+@recipe function f(m::TriMesh{T}) where {T}
+    seriestype := :surface
+    linewidth := 0
+    seriescolor --> :blue
+    colorbar := false
+    m.x, m.y, m.z
 end
