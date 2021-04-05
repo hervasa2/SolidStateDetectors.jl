@@ -203,6 +203,12 @@ function sample(l::Line{T,<:Any,Val{:seg}}, Nsamps::Int) where {T}
     end
 end
 
-get_nodes(l::Line{T,<:Any,Val{:seg}}, n::Real) where {T} = sample(l, n)
+function get_nodes(l::Line{T,<:Any,Val{:seg}}, step::AbstractFloat) where {T}
+    nodes = sample(l, step)
+    if nodes[end] ≠ l.p2
+        push!(nodes, l.p2)
+    end
+    nodes
+end
 
 perimeter(l::Line{T,<:Any,Val{:seg}}) where {T} = T(norm(l.p2 - l.p1))

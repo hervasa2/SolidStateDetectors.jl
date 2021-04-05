@@ -79,7 +79,6 @@ function in_circumcircle(point::PlanarPoint, tri::MeshTriangle{T}) where {T} #an
         return false
     else
         r, center = get_circumcircle(tri)
-        #println(geom_round(norm(point - center)) , " ",  geom_round(r))
         return r - norm(point - center) > geom_atol_zero(T)
     end
 end
@@ -172,13 +171,42 @@ end
 
 is_inside_triangle(tri::MeshTriangle, cps::AbstractConstructivePlanarSurface) = get_midpoint(tri) in cps
 
-function trimesh(cps::AbstractConstructivePlanarSurface, n_arc::Real)
-    nodes_object = get_nodes(cps, n_arc)
+function _get_tessellation_nodes(nodes::Array{<:PlanarPoint})
+    u = map(p -> p.u, nodes)
+    min_u = minimum(u)
+    width_u = maximum(u) - min_u
+    v = map(p -> p.v, nodes)
+    min_v = minimum(v)
+    width_v = maximum(v) - min_v
+    width = max_coord - min_coord
+    map(p -> Point(width*(p.u - min_u)/width_u + min_coord, width*(p.v - min_v)/width_v + min_coord), nodes), min_u, width_u, min_v, width_v, width
+end
+
+_get_planar_point_from_tesselation_node(node::Point2D, min_u::Real, width_u::Real, min_v::Real, width_v::Real, width::Real) = PlanarPoint(width_u*(node._x - min_coord)/width + min_u, width_v*(node._y - min_coord)/width + min_v)
+
+function trimesh(cps::AbstractConstructivePlanarSurface, n::Int)
+    nodes = get_nodes(cps, n)
+    tess = DelaunayTessellation(length(nodes))
+    tess_nodes, min_u, width_u, min_v, width_v, width = _get_tessellation_nodes(nodes)
+    push!(tess, tess_nodes)
+    triangles = MeshTriangle[]
+    for dt in tess
+        push!(triangles, MeshTriangle(
+                _get_planar_point_from_tesselation_node(dt._a, min_u, width_u, min_v, width_v, width),
+                _get_planar_point_from_tesselation_node(dt._b, min_u, width_u, min_v, width_v, width),
+                _get_planar_point_from_tesselation_node(dt._c, min_u, width_u, min_v, width_v, width)
+                )
+              )
+    end
+    nodes, filter(t -> is_inside_triangle(t, cps), triangles)
+    #=
+    nodes_object = get_nodes(cps, n)
     nodes, triangles = initialize_mesh(nodes_object)
     for node in nodes_object
         update_mesh!(nodes, triangles, node)
     end
     return nodes_object, filter(t -> is_inside_triangle(t, cps), triangles)
+    =#
 end
 
 struct TriMesh{T}
@@ -188,12 +216,12 @@ struct TriMesh{T}
 end
 
 function mesh(cps::AbstractConstructivePlanarSurface{T}; n = 30) where {T <: AbstractFloat}
-    _, triangles = trimesh(cps, 20)
+    _, triangles = trimesh(cps, n)
     x = []
     y = []
     z = []
     plane = Plane(cps)
-    R = RotXY(0.0000001,0.0000001)
+    R = RotXY(0.0000001,0.0000001) #vertical meshes are not supported by plots
     for tri in triangles
         p1 = R*get_cartesian_point(tri.p1, plane)
         p2 = R*get_cartesian_point(tri.p2, plane)

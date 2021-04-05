@@ -12,6 +12,7 @@ module ConstructiveSolidGeometry
     using Rotations
     using StaticArrays
     using Unitful
+    using VoronoiDelaunay
 
     import Base: in, *, +, -, &, size, ==
 

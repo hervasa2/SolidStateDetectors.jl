@@ -9,6 +9,9 @@ struct PlanarSurfaceDifference{T, A, B, TP} <: AbstractConstructivePlanarSurface
                                      planetype::Union{Val{:φ}, Val{:z}, Val{:arbitrary}}) where {T}
         empty = new{T,typeof(a),typeof(b),typeof(planetype)}(a, b, planetype, AbstractLinePrimitive[])
         lines = get_decomposed_lines(empty)
+        if length(lines) < 1
+            @error "Constructive surface has insuficient lines!"
+        end
         new{T,typeof(a),typeof(b),typeof(planetype)}(a, b, planetype, lines)
     end
 end
@@ -101,37 +104,26 @@ end
 
 perimeter(ps::AbstractConstructivePlanarSurface{T}) where {T} = sum([ perimeter(line) for line in ps.lines ])
 
-function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n_arc::Real) where {T}
-    Arcs = filter(l -> typeof(l) <: Arc{T}, ps.lines)
-    Segs = filter(l -> typeof(l) <: Line{T, <:Any, Val{:seg}}, ps.lines)
-    nSegs = length(Segs)
-    nArcs = length(Arcs)
-    n_seg = nArcs == 0 ? n_arc : max(2, 1 + Int(floor(n_arc*nArcs/nSegs)))
-    arc_nodes = unique([ geom_round(point)
-                        for arc in Arcs
-                        for point in get_nodes(arc, n_arc) ]
-                      )
-    seg_nodes = unique([ geom_round(point)
-                        for seg in Segs
-                        for point in get_nodes(seg, n_seg) ]
-                      )
-    unique(append!(seg_nodes, arc_nodes))
+function get_nodes(ps::AbstractConstructivePlanarSurface{T}, n::Int) where {T}
+    n_arc = count(l -> typeof(l) <: Arc, ps.lines)
+    n_segs = count(l -> typeof(l) <: Line, ps.lines)
+    n_nodes = n * (n_arc + floor(n_segs/3))
+    step = perimeter(ps)/n_nodes
+    nodes = unique([ geom_round(point)
+        for line in ps.lines
+        for point in get_nodes(line, step) ])
 end
 
 function get_midpoint(ps::Union{PlanarSurfaceDifference{T, <:Any, <:Any, Val{:φ}}, PlanarSurfaceIntersection{T, <:Any, <:Any, Val{:φ}}}) where {T}
-    if length(ps.lines) ≥ 1
-        φ = get_plane_φ(ps)
-        line = ps.lines[1]
-        tol = 10*geom_atol_zero(T)
-        pt = get_midpoint(line)
-        n = get_surface_vector(line, pt)
-        pt_pos = pt + tol*n
-        pt_neg = pt - tol*n
-        return pt_pos in ps ? CartesianPoint(CylindricalPoint{T}(pt_pos.u, φ, pt_pos.v)) :
-            CartesianPoint(CylindricalPoint{T}(pt_neg.u, φ, pt_neg.v))
-    else
-        @error "Constructive surface has no lines!"
-    end
+    φ = get_plane_φ(ps)
+    line = ps.lines[1]
+    tol = 10*geom_atol_zero(T)
+    pt = get_midpoint(line)
+    n = get_surface_vector(line, pt)
+    pt_pos = pt + tol*n
+    pt_neg = pt - tol*n
+    return pt_pos in ps ? CartesianPoint(CylindricalPoint{T}(pt_pos.u, φ, pt_pos.v)) :
+        CartesianPoint(CylindricalPoint{T}(pt_neg.u, φ, pt_neg.v))
 end
 
 Plane(ps::AbstractConstructivePlanarSurface) = Plane(ps.a)

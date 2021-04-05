@@ -96,13 +96,14 @@ function sample(a::Arc{T}, Nsamps::Int) where {T}
     samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in range(αMin, αMax, length = Nsamps)]
 end
 
-function get_nodes(a::Arc{T}, Nsamps::Int) where {T}
-    αMin::T, αMax::T, is_full_2π = get_α_limits(a)
-    if is_full_2π
-        samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in range(αMin, αMax, length = Nsamps + 1)][begin:end-1]
-    else
-        samples = [PlanarPoint{T}(a.r*cos(α)+a.center.u,a.r*sin(α)+a.center.v) for α in range(αMin, αMax, length = Nsamps)]
+function get_nodes(a::Arc{T}, step::AbstractFloat) where {T}
+    αMin::T, αMax::T, _ = get_α_limits(a)
+    nodes = sample(a, step)
+    endpoint = PlanarPoint{T}(a.r*cos(αMax)+a.center.u,a.r*sin(αMax)+a.center.v)
+    if nodes[end] ≠ endpoint
+        push!(nodes, endpoint)
     end
+    nodes
 end
 
 function perimeter(a::Arc{T})::T where {T}
