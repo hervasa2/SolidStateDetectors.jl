@@ -121,8 +121,10 @@ function get_Ax_By_C_line_representation(l::Line{T,PlanarPoint{T}}) where {T}
             return -l.p1.v/l.p1.u, T(1), T(0)
         end
     else
-        if l.p1.u == l.p2.u && l.p1.v ≠ l.p2.v
+        if isapprox(l.p1.u, l.p2.u, atol = geom_atol_zero(T)) && l.p1.v ≠ l.p2.v
             return T(1), T(0), l.p1.u
+        elseif isapprox(l.p1.v, l.p2.v, atol = geom_atol_zero(T)) && l.p1.u ≠ l.p2.u
+            return T(0), T(1), l.p1.v
         else
             b = PlanarPoint{T}(1,1) #solving Mx = b
             x = inv(M)*b

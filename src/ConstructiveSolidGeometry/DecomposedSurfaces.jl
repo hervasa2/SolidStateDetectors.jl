@@ -18,6 +18,7 @@ function is_real_surface(surf::AbstractGeometry{T}, g::AbstractGeometry{T}) wher
     n = get_surface_vector(surf, pt)
     pt_pos = pt + tol*n
     pt_neg = pt - tol*n
+    #println(surf, " ", (pt_pos in g && !(pt_neg in g)) || (pt_neg in g && !(pt_pos in g)))
     (pt_pos in g && !(pt_neg in g)) || (pt_neg in g && !(pt_pos in g))
 end
 

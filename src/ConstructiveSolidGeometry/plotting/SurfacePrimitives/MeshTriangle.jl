@@ -179,6 +179,8 @@ function _get_tessellation_nodes(nodes::Array{<:PlanarPoint})
     min_v = minimum(v)
     width_v = maximum(v) - min_v
     width = max_coord - min_coord
+    #max_coord and min_coord are defined and exported in VoronoiDelaunay package: 1 + eps(Float64), 2 - 2eps(Float64).
+    #Point is also in this package
     map(p -> Point(width*(p.u - min_u)/width_u + min_coord, width*(p.v - min_v)/width_v + min_coord), nodes), min_u, width_u, min_v, width_v, width
 end
 
@@ -207,36 +209,4 @@ function trimesh(cps::AbstractConstructivePlanarSurface, n::Int)
     end
     return nodes_object, filter(t -> is_inside_triangle(t, cps), triangles)
     =#
-end
-
-struct TriMesh{T}
-    x::Array
-    y::Array
-    z::Array
-end
-
-function mesh(cps::AbstractConstructivePlanarSurface{T}; n = 30) where {T <: AbstractFloat}
-    _, triangles = trimesh(cps, n)
-    x = []
-    y = []
-    z = []
-    plane = Plane(cps)
-    R = RotXY(0.0000001,0.0000001) #vertical meshes are not supported by plots
-    for tri in triangles
-        p1 = R*get_cartesian_point(tri.p1, plane)
-        p2 = R*get_cartesian_point(tri.p2, plane)
-        p3 = R*get_cartesian_point(tri.p3, plane)
-        push!(x, [p1.x, p2.x, p3.x])
-        push!(y, [p1.y, p2.y, p3.y])
-        push!(z, [p1.z, p2.z, p3.z])
-    end
-    TriMesh{T}(x, y, z)
-end
-
-@recipe function f(m::TriMesh{T}) where {T}
-    seriestype := :surface
-    linewidth := 0
-    seriescolor --> :blue
-    colorbar := false
-    m.x, m.y, m.z
 end

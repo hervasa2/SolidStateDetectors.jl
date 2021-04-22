@@ -21,6 +21,14 @@ struct Mesh{T, N}
     end
 end
 
+#x, y, z are arrays of 3-arrays which each contain the verteces of a triangle
+#Vertex j ∈ {1,2,3} of triangle i ∈ {1...n} has coordinates (x[i][j], y[i][j], z[i][j])
+struct TriMesh{T}
+    x::Array
+    y::Array
+    z::Array
+end
+
 function get_cartesian_point_from_mesh(m::Mesh{T}, index::Tuple{I,I}) where {T, I<:Int}
     i, j = index
     CartesianPoint{T}(m.x[i,j], m.y[i,j], m.z[i,j])
@@ -41,4 +49,21 @@ function get_plot_meshes(s::Union{AbstractSurfacePrimitive{T}, AbstractConstruct
   meshes = []
   push!(meshes, mesh(s; n = n))
   meshes
+end
+
+@recipe function f(m::Mesh{T}) where {T}
+    seriestype := :surface
+    linewidth --> 0.1
+    linecolor --> :white
+    seriescolor --> :blue
+    colorbar := false
+    m.x, m.y, m.z
+end
+
+@recipe function f(m::TriMesh{T}) where {T}
+    seriestype := :surface
+    linewidth := 0
+    seriescolor --> :blue
+    colorbar := false
+    m.x, m.y, m.z
 end

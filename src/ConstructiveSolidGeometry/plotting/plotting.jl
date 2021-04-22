@@ -77,7 +77,7 @@ end
         @series begin
             seriescolor := ccolor[(cn-1)%length(ccolor)+1]
             label := ""
-            mesh(g)
+            mesh(g, n = n)
         end
     end
 end
@@ -90,7 +90,7 @@ end
         @series begin
             seriescolor := ccolor[(cn-1)%length(ccolor)+1]
             label := ""
-            l
+            get_plot_points(l, n = n)
         end
     end
 end
@@ -106,13 +106,4 @@ end
 
 @recipe function f(points::Vector{PlanarPoint{T}}) where {T}
     map(p -> p.u, points), map(p -> p.v, points)
-end
-
-@recipe function f(m::Mesh{T}) where {T}
-    seriestype := :surface
-    linewidth --> 0.1
-    linecolor --> :white
-    seriescolor --> :blue
-    colorbar := false
-    m.x, m.y, m.z
 end
