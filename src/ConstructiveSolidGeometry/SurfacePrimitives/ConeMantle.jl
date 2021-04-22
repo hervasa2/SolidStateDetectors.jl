@@ -65,7 +65,8 @@ function get_surface_vector(c::ConeMantle{T}, point::AbstractCoordinatePoint)::C
     CartesianVector{T}(n[1]*cφ, n[1]*sφ, n[3])
 end
 
-get_r_at_z(c::ConeMantle{T}, z::Real) where {T} = _get_r_at_z(get_r_limits(c)..., c.z, z)
+get_r_at_z(c::ConeMantle{T, T}, z::Real) where {T} = c.r
+get_r_at_z(c::ConeMantle{T, Tuple{T,T}}, z::Real) where {T} = _get_r_at_z(c.r[1], c.r[2], c.z, z)
 
 get_r_limits(c::ConeMantle{T, T, <:Any, <:Any}) where {T} = (T(c.r), T(c.r))
 get_r_limits(c::ConeMantle{T, <:Tuple, <:Any, <:Any}) where {T} = c.r
