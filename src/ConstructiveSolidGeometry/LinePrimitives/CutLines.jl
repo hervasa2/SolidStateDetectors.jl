@@ -11,7 +11,7 @@ end
 function get_cut_lines(l::Line{T}, c::Arc{T}) where {T}
     sol1 = get_intersection(Line(l), Circle(c))
     if !isnothing(sol1) && length(sol1) > 1
-        sol = filter(p -> _in_angular_interval_closed(get_α_at_u_v(c, p...), c.α, tol = geom_atol_zero(T)), sol1)
+        sol = filter(p -> _in_angular_interval_closed(get_α_at_u_v(c, p...), c.α, geom_atol_zero(T)), sol1)
         return cut(l, sol, Val(:point))
     else
         return [l]
@@ -32,7 +32,7 @@ function get_cut_lines(c1::Arc{T}, c2::Arc{T}) where {T}
     sol1 = get_intersection(Circle(c1), Circle(c2))
     n_sol = _get_number_of_intersections(sol1)
     if n_sol > 1 && !isinf(n_sol)
-        sol = filter(p -> _in_angular_interval_closed(get_α_at_u_v(c2, p...), c2.α, tol = geom_atol_zero(T)), sol1)
+        sol = filter(p -> _in_angular_interval_closed(get_α_at_u_v(c2, p...), c2.α, geom_atol_zero(T)), sol1)
         return cut(c1, map(p -> get_α_at_u_v(c1, p...), sol), Val(:α))
     else
         return [c1]
