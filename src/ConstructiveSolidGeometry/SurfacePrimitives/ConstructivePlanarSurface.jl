@@ -10,7 +10,7 @@ struct PlanarSurfaceDifference{T, A, B, TP} <: AbstractConstructivePlanarSurface
         empty = new{T,typeof(a),typeof(b),typeof(planetype)}(a, b, planetype, AbstractLinePrimitive[])
         lines = get_decomposed_lines(empty)
         if length(lines) < 1
-            @error "Constructive surface has insuficient lines!"
+            #@warn "Constructive surface has insuficient lines!"
         end
         new{T,typeof(a),typeof(b),typeof(planetype)}(a, b, planetype, lines)
     end
