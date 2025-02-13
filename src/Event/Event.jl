@@ -56,12 +56,12 @@ end
 
 function Event(locations::Vector{<:AbstractCoordinatePoint{T}}, energies::Vector{<:RealQuantity}, N::Int; 
                particle_type::Type{PT} = Gamma, number_of_shells::Int = 2,
-               radius::Vector{<:RealQuantity{T}} = radius_guess.(T.(to_internal_units.(energies)), particle_type)
+               radius::Vector{<:RealQuantity} = radius_guess.(T.(to_internal_units.(energies)), particle_type)
               )::Event{T} where {T <: SSDFloat, PT <: ParticleType}
     
     return Event(broadcast(i -> 
                 NBodyChargeCloud(locations[i], energies[i], N, particle_type, 
-                radius = radius[i], number_of_shells = number_of_shells),
+                radius = T(to_internal_units(radius[i])), number_of_shells = number_of_shells),
            eachindex(locations)))
 end
 
@@ -181,7 +181,7 @@ The output is stored in `evt.waveforms`.
 
 ## Example 
 ```julia
-get_signals!(evt, sim, Δt = 1u"ns") # if evt.drift_paths were calculated in time steps of 1ns
+SolidStateDetectors.get_signals!(evt, sim, Δt = 1u"ns") # if evt.drift_paths were calculated in time steps of 1ns
 ```
 
 !!! note 
@@ -314,16 +314,17 @@ function get_electron_and_hole_contribution(evt::Event{T}, sim::Simulation{T, S}
     signal_e::Vector{T} = zeros(T, length(maximum(map(p -> p.timestamps_e, evt.drift_paths))))
     signal_h::Vector{T} = zeros(T, length(maximum(map(p -> p.timestamps_h, evt.drift_paths))))
 
+    ctm = sim.detector.semiconductor.charge_trapping_model
     for i in eachindex(evt.drift_paths)
         energy = flatview(evt.energies)[i]
         
         dp_e::Vector{CartesianPoint{T}} = evt.drift_paths[i].e_path
         dp_e_t::Vector{T} = evt.drift_paths[i].timestamps_e
-        add_signal!(signal_e, dp_e_t, dp_e, dp_e_t, T(-1)*energy, wp, S)
+        add_signal!(signal_e, dp_e_t, dp_e, dp_e_t, -energy, wp, S, ctm)
         
         dp_h::Vector{CartesianPoint{T}} = evt.drift_paths[i].h_path
         dp_h_t::Vector{T} = evt.drift_paths[i].timestamps_h
-        add_signal!(signal_h, dp_h_t, dp_h, dp_h_t, energy, wp, S)
+        add_signal!(signal_h, dp_h_t, dp_h, dp_h_t, energy, wp, S, ctm)
     end
     unitless_energy_to_charge = _convert_internal_energy_to_external_charge(sim.detector.semiconductor.material)
     return (electron_contribution = RDWaveform(range(zero(T) * u"ns", step = dt * u"ns", length = length(signal_e)), signal_e * unitless_energy_to_charge),
