@@ -25,7 +25,7 @@ drift:
         E0: 18200
 temperature_dependence:
   model: SquareRoot
-  temperature: 95
+  temperature: 87
   parameters:
   #values from M.Ali Omar, Lino Reggiani 1987 slightly modified for siggen
     e100:
