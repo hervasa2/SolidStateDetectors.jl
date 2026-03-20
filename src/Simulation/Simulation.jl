@@ -634,7 +634,6 @@ function update_till_convergence!( sim::Simulation{T,CS},
     sim.ϵ_r = DielectricDistribution(DielectricDistributionArray(pcs), get_extended_midpoints_grid(grid))
     sim.electric_potential = ElectricPotential(ElectricPotentialArray(pcs), grid)
     sim.point_types = PointTypes(PointTypeArray(pcs), grid)
-
     cf
 end
 
@@ -977,7 +976,8 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                                     depletion_handling = depletion_handling,
                                     device_array_type = device_array_type,
                                     use_nthreads = guess_nt ? _guess_optimal_number_of_threads_for_SOR(size(sim.electric_potential.grid), max_nthreads[1], CS) : max_nthreads[1],
-                                    sor_consts = sor_consts )
+                                    sor_consts = sor_consts,
+                                    verbose = verbose )
         else
             apply_initial_state!(sim, potential_type, contact_id, grid; not_only_paint_contacts, paint_contacts, depletion_handling)
             update_till_convergence!( sim, potential_type, contact_id, convergence_limit,
@@ -986,7 +986,8 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                                         depletion_handling = depletion_handling,
                                         device_array_type = device_array_type,
                                         use_nthreads = guess_nt ? _guess_optimal_number_of_threads_for_SOR(size(sim.weighting_potentials[contact_id].grid), max_nthreads[1], CS) : max_nthreads[1],
-                                        sor_consts = sor_consts )
+                                        sor_consts = sor_consts,
+                                        verbose = verbose )
         end
     end
     # refinement_counter::Int = 1
@@ -1014,7 +1015,8 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                                                 device_array_type = device_array_type,
                                                 not_only_paint_contacts = not_only_paint_contacts, 
                                                 paint_contacts = paint_contacts,
-                                                sor_consts = is_last_ref ? T(1) : sor_consts )
+                                                sor_consts = is_last_ref ? T(1) : sor_consts,
+                                                verbose = verbose )
             else
                 max_diffs = abs.(ref_limits)
                 refine!(sim, WeightingPotential, contact_id, max_diffs, new_min_tick_distance)
@@ -1028,27 +1030,8 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                                                 device_array_type = device_array_type,
                                                 not_only_paint_contacts = not_only_paint_contacts, 
                                                 paint_contacts = paint_contacts,
-                                                sor_consts = is_last_ref ? T(1) : sor_consts )
-            end
-        end
-    end
-    if verbose && depletion_handling && isEP
-        maximum_applied_potential = maximum(broadcast(c -> c.potential, sim.detector.contacts))
-        minimum_applied_potential = minimum(broadcast(c -> c.potential, sim.detector.contacts))
-        @inbounds for i in eachindex(sim.electric_potential.data)
-            if sim.electric_potential.data[i] < minimum_applied_potential # p-type
-                @warn """Detector seems not to be fully depleted at a bias voltage of $(bias_voltage) V.
-                    At least one grid point has a smaller potential value ($(sim.electric_potential.data[i]) V)
-                    than the minimum applied potential ($(minimum_applied_potential) V). This should not be.
-                    However, small overshoots could be due to numerical precision."""
-                break
-            end
-            if sim.electric_potential.data[i] > maximum_applied_potential # n-type
-                @warn """Detector seems not to be not fully depleted at a bias voltage of $(bias_voltage) V.
-                    At least one grid point has a higher potential value ($(sim.electric_potential.data[i]) V)
-                    than the maximum applied potential ($(maximum_applied_potential) V). This should not be.
-                    However, small overshoots could be due to numerical precision."""
-                break
+                                                sor_consts = is_last_ref ? T(1) : sor_consts,
+                                                verbose = verbose )
             end
         end
     end

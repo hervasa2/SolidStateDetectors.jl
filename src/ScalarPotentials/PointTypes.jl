@@ -32,6 +32,7 @@ const pn_junction_bit      = 0x04 # parse(UInt8, "00000100", base=2) # 0 -> poin
 const bulk_bit             = 0x08 # parse(UInt8, "00001000", base=2) # 0 -> point is surrounded by points that do not belong to the pn-junction; 1 -> point is only surrounded by points in the pn-junction
 const inactive_layer_bit   = 0x10 # parse(UInt8, "00010000", base=2) # 0 -> point is not part of the inactive layer; 1 -> point is part of the inactive layer
 const inactive_contact_bit = 0x20 # parse(UInt8, "00100000", base=2) # 0 -> point is not part of the contact next to the inactive layer; 1 -> point is part of the contact next to the inactive layer 
+const depletion_handling_bit = 0x40 # parse(UInt8, "01000000", base=2) # 0 -> point was never checked for depletion; 1 -> point was checked for depletion (depletion handling enabled) 
 
 is_pn_junction_point_type(p::PointType) = p & pn_junction_bit > 0
 is_undepleted_point_type(p::PointType) = p & undepleted_bit > 0
@@ -110,9 +111,14 @@ depleted at the provided bias voltage.
 is_depleted(sim.point_types)
 ```
 """
-is_depleted(point_types::PointTypes)::Bool = 
+function is_depleted(point_types::PointTypes)
+    if depletion_handling_bit & point_types[1] == 0
+        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+    end
     !any(b -> (bulk_bit & b > 0) && (undepleted_bit & b > 0) &&
     (inactive_layer_bit & b == 0), point_types.data)
+end
 
 """
     get_active_volume(point_types::PointTypes{T}) where {T}
@@ -130,6 +136,10 @@ all cells marked as depleted.
     Only `φ`-symmetries are taken into account.
 """
 function get_active_volume(point_types::PointTypes{T, 3, Cylindrical}) where {T}
+    if depletion_handling_bit & point_types[1] == 0
+        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+    end
     active_volume::T = 0
 
     only_2d::Bool = length(point_types.grid.axes[2]) == 1
