@@ -22,6 +22,7 @@ How to get information out of a `PointType` variable `point_type`:
 5. `point_type & bulk_bit > 0` -> this point is only surrounded by points marked as `pn_junction_bit`
 6. `point_type & inactive_layer_bit > 0` -> this point is part of the inactive layer
 7. `point_type & inactive_contact_bit > 0` -> this point is part of the contact next to the inactive layer
+8. `point_type & depletion_handling_bit > 0` -> this point was checked for depletion handling
 """
 const PointType       = UInt8
 
