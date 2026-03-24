@@ -46,8 +46,8 @@ using SolidStateDetectors: Electron, Hole
 cdm = sim.detector.semiconductor.charge_drift_model
 depth_list = 0u"mm":0.01u"mm":(det_r-pn_r)
 mobility_list = map(depth -> let pt::CartesianPoint{T} = CartesianPoint(det_r - depth, 0, z_draw)
-    (µe = SolidStateDetectors.calculate_mobility(cdm, pt, Hole) * 10000u"cm^2/(V*s)",
-     µh = SolidStateDetectors.calculate_mobility(cdm, pt, Electron) * 10000u"cm^2/(V*s)")
+    (µe = SolidStateDetectors.calculate_mobility(cdm, pt, Electron) * 10000u"cm^2/(V*s)",
+     µh = SolidStateDetectors.calculate_mobility(cdm, pt, Hole) * 10000u"cm^2/(V*s)")
 end, depth_list)
 plot(depth_list,  getfield.(mobility_list, :µh), label = "Hole", lw = 4)
 plot!(depth_list, getfield.(mobility_list, :µe), label = "Electron", lw = 4)
