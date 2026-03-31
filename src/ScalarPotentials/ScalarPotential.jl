@@ -16,7 +16,7 @@ const ScalarPotential{T, N, S, AT} = Union{
 
 ScalarPotential(::ElectricPotential, data, grid) = ElectricPotential(data, grid)
 ScalarPotential(::WeightingPotential, data, grid) = WeightingPotential(data, grid)
-ScalarPotential(::PointTypes, data, grid) = PointTypes(data, grid)
+ScalarPotential(::PointTypes{T, N, S, AT, D}, data, grid) where {T, N, S, AT, D} = PointTypes(data, grid, D)
 ScalarPotential(::EffectiveChargeDensity, data, grid) = EffectiveChargeDensity(data, grid)
 ScalarPotential(::ImpurityScale, data, grid) = ImpurityScale(data, grid)
 

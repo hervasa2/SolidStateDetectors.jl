@@ -22,7 +22,6 @@ How to get information out of a `PointType` variable `point_type`:
 5. `point_type & bulk_bit > 0` -> this point is only surrounded by points marked as `pn_junction_bit`
 6. `point_type & inactive_layer_bit > 0` -> this point is part of the inactive layer
 7. `point_type & inactive_contact_bit > 0` -> this point is part of the contact next to the inactive layer
-8. `point_type & depletion_handling_bit > 0` -> this point was checked for depletion handling
 """
 const PointType       = UInt8
 
@@ -32,15 +31,14 @@ const undepleted_bit       = 0x02 # parse(UInt8, "00000010", base=2) # 0 -> depl
 const pn_junction_bit      = 0x04 # parse(UInt8, "00000100", base=2) # 0 -> point is not part of pn-junction; 1 -> point is part of the pn-junction
 const bulk_bit             = 0x08 # parse(UInt8, "00001000", base=2) # 0 -> point is surrounded by points that do not belong to the pn-junction; 1 -> point is only surrounded by points in the pn-junction
 const inactive_layer_bit   = 0x10 # parse(UInt8, "00010000", base=2) # 0 -> point is not part of the inactive layer; 1 -> point is part of the inactive layer
-const inactive_contact_bit = 0x20 # parse(UInt8, "00100000", base=2) # 0 -> point is not part of the contact next to the inactive layer; 1 -> point is part of the contact next to the inactive layer 
-const depletion_handling_bit = 0x40 # parse(UInt8, "01000000", base=2) # 0 -> point was never checked for depletion; 1 -> point was checked for depletion (depletion handling enabled) 
+const inactive_contact_bit = 0x20 # parse(UInt8, "00100000", base=2) # 0 -> point is not part of the contact next to the inactive layer; 1 -> point is part of the contact next to the inactive layer
 
 is_pn_junction_point_type(p::PointType) = p & pn_junction_bit > 0
 is_undepleted_point_type(p::PointType) = p & undepleted_bit > 0
 is_fixed_point_type(p::PointType) = p & update_bit == 0
 is_in_inactive_layer(p::PointType) = p & inactive_layer_bit > 0
 """
-    struct PointTypes{T, N, S, AT} <: AbstractArray{T, N}
+    struct PointTypes{T, N, S, AT, D} <: AbstractArray{T, N}
 
 Information about the grid points used to calculate the [`ElectricPotential`](@ref)
 stored via bit-flags. Data is stored as [`PointType`](@ref) which is an `UInt8`.
@@ -50,6 +48,7 @@ stored via bit-flags. Data is stored as [`PointType`](@ref) which is an `UInt8`.
 * `N`: Dimension of the `grid` and `data` array.  
 * `S`: Coordinate system (`Cartesian` or `Cylindrical`).
 * `AT`: Axes type.  
+* `D`: Bool indicating if depletion_handling is enabled in simulation
 
 ## Fields
 * `data::Array{PointType, N}`: Array containing the point type values at the discrete points of the `grid`.
@@ -57,10 +56,12 @@ stored via bit-flags. Data is stored as [`PointType`](@ref) which is an `UInt8`.
 
 See also [`PointType`](@ref).
 """
-struct PointTypes{T, N, S, AT} <: AbstractArray{T, N}
+struct PointTypes{T, N, S, AT, D} <: AbstractArray{T, N}
     data::Array{PointType, N}
     grid::Grid{T, N, S, AT}
 end
+
+PointTypes(data::Array{PointType,N}, grid::Grid{T,N,S,AT}, depletion_handling::Bool = false) where {T,N,S,AT} = PointTypes{T,N,S,AT,depletion_handling}(data, grid)
 
 @inline size(point_types::PointTypes{T, N, S}) where {T, N, S} = size(point_types.data)
 @inline length(point_types::PointTypes{T, N, S}) where {T, N, S} = length(point_types.data)
@@ -112,13 +113,15 @@ depleted at the provided bias voltage.
 is_depleted(sim.point_types)
 ```
 """
-function is_depleted(point_types::PointTypes)
-    if depletion_handling_bit & point_types[1] == 0
-        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
-        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
-    end
+function is_depleted(point_types::PointTypes{T, N, S, AT, true}) where {T, N, S, AT}
     !any(b -> (bulk_bit & b > 0) && (undepleted_bit & b > 0) &&
     (inactive_layer_bit & b == 0), point_types.data)
+end
+
+function is_depleted(point_types::PointTypes)
+    @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
+    Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+    true
 end
 
 """
@@ -136,9 +139,9 @@ all cells marked as depleted.
 !!! note
     Only `φ`-symmetries are taken into account.
 """
-function get_active_volume(point_types::PointTypes{T, 3, Cylindrical}) where {T}
-    if depletion_handling_bit & point_types[1] == 0
-        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
+function get_active_volume(point_types::PointTypes{T, 3, Cylindrical, AT, D}) where {T, AT, D}
+    if !D
+        @warn """Electric potential calculation was not run with depletion handling enabled. The result of get_active_volume may be inaccurate. 
         Consider running the electric potential calculation with depletion_handling = true for accurate results."""
     end
     active_volume::T = 0
@@ -196,7 +199,11 @@ function get_active_volume(point_types::PointTypes{T, 3, Cylindrical}) where {T}
     return active_volume * f * Unitful.cm * Unitful.cm * Unitful.cm
 end
 
-function get_active_volume(point_types::PointTypes{T, 3, Cartesian}) where {T}
+function get_active_volume(point_types::PointTypes{T, 3, Cartesian, AT, D}) where {T, AT, D}
+    if !D
+        @warn """Electric potential calculation was not run with depletion handling enabled. The result of get_active_volume may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+    end
     active_volume::T = 0
 
     x_ext::Vector{T} = get_extended_ticks(point_types.grid.axes[1])
@@ -233,15 +240,16 @@ function PointTypes(nt::NamedTuple)
     T = typeof(grid.axes[1].ticks[1])
     S = get_coordinate_system(grid)
     N = get_number_of_dimensions(grid)
-    PointTypes{T, N, S, typeof(grid.axes)}( nt.values, grid )
+    PointTypes{T, N, S, typeof(grid.axes), nt.depletion_handling}( nt.values, grid )
 end
 
 Base.convert(T::Type{PointTypes}, x::NamedTuple) = T(x)
 
-function Base.NamedTuple(point_types::PointTypes{T, 3}) where {T}
+function Base.NamedTuple(point_types::PointTypes{T, 3, S, AT, D}) where {T, S, AT, D}
     return (
         grid = NamedTuple(point_types.grid),
         values = point_types.data,
+        depletion_handling = D,
     )
 end
 

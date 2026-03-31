@@ -466,7 +466,7 @@ end
 
 """
     apply_initial_state!(sim::Simulation{T}, ::Type{ElectricPotential}, grid::Grid{T} = Grid(sim);
-            not_only_paint_contacts::Bool = true, paint_contacts::Bool = true)::Nothing where {T <: SSDFloat}
+            not_only_paint_contacts::Bool = true, paint_contacts::Bool = true, depletion_handling::Bool = false)::Nothing where {T <: SSDFloat}
 
 Applies the initial state for the calculation of the [`ElectricPotential`](@ref).
 It overwrites `sim.electric_potential`, `sim.q_eff_imp`, `sim.q_eff_fix`, `sim.ϵ` and `sim.point_types`
@@ -482,6 +482,7 @@ with the material properties and fixed potentials defined in `sim.detector`.
     without checking if points are actually inside them.
     Setting it to `false` should improve the performance but the points inside of [`Contact`](@ref) are not fixed anymore.    
 * `paint_contacts::Bool = true`: Enable or disable the painting of the surfaces of the [`Contact`](@ref) onto the `grid`.
+* `depletion_handling::Bool = false`: passes the depletion_handling value to point_types for informational purposes. This value is set and passed from `calculate_potential` to `apply_initial_state!`.
 
 ## Examples
 ```julia
@@ -489,7 +490,7 @@ apply_initial_state!(sim, ElectricPotential, paint_contacts = false)
 ```
 """
 function apply_initial_state!(sim::Simulation{T, CS}, ::Type{ElectricPotential}, grid::Grid{T} = Grid(sim);
-        not_only_paint_contacts::Bool = true, paint_contacts::Bool = true)::Nothing where {T <: SSDFloat, CS}
+        not_only_paint_contacts::Bool = true, paint_contacts::Bool = true, depletion_handling::Bool = false)::Nothing where {T <: SSDFloat, CS}
     pcs = PotentialCalculationSetup(
                 sim.detector, grid, sim.medium; 
                 use_nthreads = _guess_optimal_number_of_threads_for_SOR(size(grid), Base.Threads.nthreads(), CS), 
@@ -500,7 +501,7 @@ function apply_initial_state!(sim::Simulation{T, CS}, ::Type{ElectricPotential},
     sim.imp_scale = ImpurityScale(ImpurityScaleArray(pcs), grid)
     sim.q_eff_fix = EffectiveChargeDensity(FixedEffectiveChargeDensityArray(pcs), grid)
     sim.ϵ_r = DielectricDistribution(DielectricDistributionArray(pcs), get_extended_midpoints_grid(grid))
-    sim.point_types = PointTypes(PointTypeArray(pcs), grid)
+    sim.point_types = PointTypes(PointTypeArray(pcs), grid, depletion_handling)
     sim.electric_potential = ElectricPotential(ElectricPotentialArray(pcs), grid)
     nothing
 end
@@ -633,7 +634,7 @@ function update_till_convergence!( sim::Simulation{T,CS},
     sim.q_eff_fix = EffectiveChargeDensity(FixedEffectiveChargeDensityArray(pcs), grid)
     sim.ϵ_r = DielectricDistribution(DielectricDistributionArray(pcs), get_extended_midpoints_grid(grid))
     sim.electric_potential = ElectricPotential(ElectricPotentialArray(pcs), grid)
-    sim.point_types = PointTypes(PointTypeArray(pcs), grid)
+    sim.point_types = PointTypes(PointTypeArray(pcs), grid, depletion_handling)
     cf
 end
 
@@ -763,7 +764,8 @@ function refine!(sim::Simulation{T}, ::Type{ElectricPotential},
                     minimum_distances::Tuple{<:Real,<:Real,<:Real} = (T(0), T(0), T(0));
                     not_only_paint_contacts::Bool = true, 
                     paint_contacts::Bool = true,
-                    update_other_fields::Bool = false) where {T <: SSDFloat}
+                    update_other_fields::Bool = false,
+                    depletion_handling::Bool = false) where {T <: SSDFloat}
     sim.electric_potential = refine_scalar_potential(sim.electric_potential, T.(max_diffs), T.(minimum_distances))
 
     if update_other_fields
@@ -774,7 +776,7 @@ function refine!(sim::Simulation{T}, ::Type{ElectricPotential},
         sim.q_eff_imp = EffectiveChargeDensity(EffectiveChargeDensityArray(pcs), sim.electric_potential.grid)
         sim.q_eff_fix = EffectiveChargeDensity(FixedEffectiveChargeDensityArray(pcs), sim.electric_potential.grid)
         sim.ϵ_r = DielectricDistribution(DielectricDistributionArray(pcs), get_extended_midpoints_grid(sim.electric_potential.grid))
-        sim.point_types = PointTypes(PointTypeArray(pcs), sim.electric_potential.grid)
+        sim.point_types = PointTypes(PointTypeArray(pcs), sim.electric_potential.grid, depletion_handling)
     end
     nothing
 end
@@ -969,7 +971,7 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
     end
     if initialize 
         if isEP
-            apply_initial_state!(sim, potential_type, grid; not_only_paint_contacts, paint_contacts)
+            apply_initial_state!(sim, potential_type, grid; not_only_paint_contacts, paint_contacts, depletion_handling)
             update_till_convergence!( sim, potential_type, convergence_limit,
                                     n_iterations_between_checks = n_iterations_between_checks,
                                     max_n_iterations = max_n_iterations,
@@ -1004,7 +1006,7 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                 else
                     abs.(ref_limits .* bias_voltage)
                 end
-                refine!(sim, ElectricPotential, max_diffs, new_min_tick_distance)
+                refine!(sim, ElectricPotential, max_diffs, new_min_tick_distance, depletion_handling = depletion_handling)
                 nt = guess_nt ? _guess_optimal_number_of_threads_for_SOR(size(sim.electric_potential.grid), max_nthreads[iref+1], CS) : max_nthreads[iref+1]
                 verbose && println("Grid size: $(size(sim.electric_potential.data)) - $(onCPU ? "using $(nt) threads now" : "GPU")") 
                 update_till_convergence!( sim, potential_type, convergence_limit,
