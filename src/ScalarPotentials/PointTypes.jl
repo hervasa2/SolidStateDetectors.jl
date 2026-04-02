@@ -48,7 +48,7 @@ stored via bit-flags. Data is stored as [`PointType`](@ref) which is an `UInt8`.
 * `N`: Dimension of the `grid` and `data` array.  
 * `S`: Coordinate system (`Cartesian` or `Cylindrical`).
 * `AT`: Axes type.  
-* `D`: Bool indicating if depletion_handling is enabled in simulation
+* `D`: Bool indicating if depletion_handling is enabled in simulation.
 
 ## Fields
 * `data::Array{PointType, N}`: Array containing the point type values at the discrete points of the `grid`.
@@ -76,6 +76,7 @@ function in(pt::AbstractCoordinatePoint{T}, point_types::PointTypes{T, 3, S})::B
     return point_type & bulk_bit > 0
 end
 
+has_depletion_handling(::PointTypes{<:Any,<:Any,<:Any,<:Any,D}) where {D} = D
 
 function mark_bulk_bits!(point_types::Array{PointType, 3})
     i1max, i2max, i3max = size(point_types)
@@ -113,15 +114,15 @@ depleted at the provided bias voltage.
 is_depleted(sim.point_types)
 ```
 """
-function is_depleted(point_types::PointTypes{T, N, S, AT, true}) where {T, N, S, AT}
-    !any(b -> (bulk_bit & b > 0) && (undepleted_bit & b > 0) &&
-    (inactive_layer_bit & b == 0), point_types.data)
-end
-
-function is_depleted(point_types::PointTypes)
-    @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
-    Consider running the electric potential calculation with depletion_handling = true for accurate results."""
-    true
+function is_depleted(point_types::PointTypes)::Bool
+    return if has_depletion_handling(point_types)
+        !any(b -> (bulk_bit & b > 0) && (undepleted_bit & b > 0) &&
+        (inactive_layer_bit & b == 0), point_types.data)
+    else 
+        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+        true
+    end
 end
 
 """
@@ -139,8 +140,9 @@ all cells marked as depleted.
 !!! note
     Only `φ`-symmetries are taken into account.
 """
-function get_active_volume(point_types::PointTypes{T, 3, Cylindrical, AT, D}) where {T, AT, D}
-    if !D
+function get_active_volume(point_types::PointTypes{T, 3, Cylindrical}) where {T}
+
+    if !has_depletion_handling(point_types)
         @warn """Electric potential calculation was not run with depletion handling enabled. The result of get_active_volume may be inaccurate. 
         Consider running the electric potential calculation with depletion_handling = true for accurate results."""
     end
@@ -199,8 +201,9 @@ function get_active_volume(point_types::PointTypes{T, 3, Cylindrical, AT, D}) wh
     return active_volume * f * Unitful.cm * Unitful.cm * Unitful.cm
 end
 
-function get_active_volume(point_types::PointTypes{T, 3, Cartesian, AT, D}) where {T, AT, D}
-    if !D
+function get_active_volume(point_types::PointTypes{T, 3, Cartesian}) where {T}
+    
+    if !has_depletion_handling(point_types)
         @warn """Electric potential calculation was not run with depletion handling enabled. The result of get_active_volume may be inaccurate. 
         Consider running the electric potential calculation with depletion_handling = true for accurate results."""
     end
@@ -240,16 +243,17 @@ function PointTypes(nt::NamedTuple)
     T = typeof(grid.axes[1].ticks[1])
     S = get_coordinate_system(grid)
     N = get_number_of_dimensions(grid)
-    PointTypes{T, N, S, typeof(grid.axes), nt.depletion_handling}( nt.values, grid )
+    D = get(nt, :depletion_handling, any(b -> (undepleted_bit & b > 0), nt.values))
+    PointTypes{T, N, S, typeof(grid.axes), D}( nt.values, grid )
 end
 
 Base.convert(T::Type{PointTypes}, x::NamedTuple) = T(x)
 
-function Base.NamedTuple(point_types::PointTypes{T, 3, S, AT, D}) where {T, S, AT, D}
+function Base.NamedTuple(point_types::PointTypes)
     return (
         grid = NamedTuple(point_types.grid),
         values = point_types.data,
-        depletion_handling = D,
+        depletion_handling = has_depletion_handling(point_types),
     )
 end
 
@@ -335,17 +339,15 @@ end
 
 
 """
-        in_inactive_layer(pt::CartesianPoint{T},
-           g::AbstractGeometry{T},
-           point_types::PointTypes{T})
+    in_inactive_layer(pt::CartesianPoint{T}, g::AbstractGeometry{T}, point_types::PointTypes{T})
 
-Returns if a CartesianPoint belongs to the inactive layer using the geometry of the inactive layer
-
-        in_inactive_layer(pt::CartesianPoint{T},
-           ::Nothing,
-           point_types::PointTypes{T})
-Returns if a CartesianPoint belongs to the inactive layer using point types
+Returns if a `CartesianPoint`` belongs to the inactive layer using the geometry `g` of the inactive layer.
 """
-
 @inline in_inactive_layer(pt::CartesianPoint{T}, g::AbstractGeometry{T}, ::PointTypes{T}) where {T} = in(pt, g)
+
+"""
+    in_inactive_layer(pt::CartesianPoint{T}, ::Nothing, point_types::PointTypes{T})
+
+Returns if a `CartesianPoint`` belongs to the inactive layer using point types.
+"""
 @inline in_inactive_layer(pt::CartesianPoint{T}, ::Nothing, point_types::PointTypes{T}) where {T} = is_in_inactive_layer(point_types[pt])
