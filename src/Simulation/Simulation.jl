@@ -1037,35 +1037,34 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
             end
         end
     end
-    if depletion_handling && isEP
-        maximum_applied_potential = maximum(broadcast(c -> c.potential, sim.detector.contacts))
-        minimum_applied_potential = minimum(broadcast(c -> c.potential, sim.detector.contacts))
-        @inbounds for i in eachindex(sim.electric_potential.data)
-            if sim.electric_potential.data[i] < minimum_applied_potential && sim.point_types.data[i] & bulk_bit > 0 # p-type
-                @warn """At least one grid point in the detector has a smaller potential value ($(sim.electric_potential.data[i]) V)
-                    than the minimum applied potential ($(minimum_applied_potential) V). 
-                    A fully depleted detector should not have local extrema in a converged electric potential.
-                    However, small overshoots can occur due to numerical precision."""
-                break
+    if isEP 
+        mark_bulk_bits!(sim.point_types.data)
+        if depletion_handling
+            mark_undep_bits!(sim.point_types.data, sim.imp_scale.data)
+            if isdefined(sim.detector.semiconductor.impurity_density_model, :surface_imp_model)
+                mark_inactivelayer_bits!(sim.point_types.data)
             end
-            if sim.electric_potential.data[i] > maximum_applied_potential && sim.point_types.data[i] & bulk_bit > 0 # n-type
-                @warn """At least one grid point in the detector has a higher potential value ($(sim.electric_potential.data[i]) V)
-                    than the maximum applied potential ($(maximum_applied_potential) V). 
-                    A fully depleted detector should not have local extrema in a converged electric potential.
-                    However, small overshoots can occur due to numerical precision."""
-                break
+            
+            maximum_applied_potential = maximum(broadcast(c -> c.potential, sim.detector.contacts))
+            minimum_applied_potential = minimum(broadcast(c -> c.potential, sim.detector.contacts))
+            @inbounds for i in eachindex(sim.electric_potential.data)
+                if sim.electric_potential.data[i] < minimum_applied_potential && sim.point_types.data[i] & bulk_bit > 0 # p-type
+                    @warn """At least one grid point in the detector has a smaller potential value ($(sim.electric_potential.data[i]) V)
+                        than the minimum applied potential ($(minimum_applied_potential) V). 
+                        A fully depleted detector should not have local extrema in a converged electric potential.
+                        However, small overshoots can occur due to numerical precision."""
+                    break
+                end
+                if sim.electric_potential.data[i] > maximum_applied_potential && sim.point_types.data[i] & bulk_bit > 0 # n-type
+                    @warn """At least one grid point in the detector has a higher potential value ($(sim.electric_potential.data[i]) V)
+                        than the maximum applied potential ($(maximum_applied_potential) V). 
+                        A fully depleted detector should not have local extrema in a converged electric potential.
+                        However, small overshoots can occur due to numerical precision."""
+                    break
+                end
             end
         end
     end
-    if isEP mark_bulk_bits!(sim.point_types.data) end
-    if depletion_handling && isEP
-        mark_undep_bits!(sim.point_types.data, sim.imp_scale.data)
-        
-        if isdefined(sim.detector.semiconductor.impurity_density_model, :surface_imp_model)
-            mark_inactivelayer_bits!(sim.point_types.data)
-        end
-    end
-    
     nothing
 end
 
