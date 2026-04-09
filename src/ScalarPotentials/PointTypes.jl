@@ -119,8 +119,11 @@ function is_depleted(point_types::PointTypes)::Bool
         !any(b -> (bulk_bit & b > 0) && (undepleted_bit & b > 0) &&
         (inactive_layer_bit & b == 0), point_types.data)
     else 
-        @warn """Electric potential calculation was not run with depletion handling enabled. The result of is_depleted may be inaccurate. 
-        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+        @warn """Electric potential calculation was not run with depletion handling enabled. 
+        The result of is_depleted may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results.
+        When loading simulations from <v0.11.1, the depletion handling state is ambiguous if no undepleted_bit's were found, 
+        in this case use set_point_type_depletion_handling!(sim, true) as needed."""
         true
     end
 end
@@ -143,8 +146,11 @@ all cells marked as depleted.
 function get_active_volume(point_types::PointTypes{T, 3, Cylindrical}) where {T}
 
     if !has_depletion_handling(point_types)
-        @warn """Electric potential calculation was not run with depletion handling enabled. The result of get_active_volume may be inaccurate. 
-        Consider running the electric potential calculation with depletion_handling = true for accurate results."""
+        @warn """Electric potential calculation was not run with depletion handling enabled. 
+        The result of get_active_volume may be inaccurate. 
+        Consider running the electric potential calculation with depletion_handling = true for accurate results.
+        When loading simulations from <v0.11.1, the depletion handling state is ambiguous if no undepleted_bit's were found, 
+        in this case use set_point_type_depletion_handling!(sim, true) as needed."""
     end
     active_volume::T = 0
 
