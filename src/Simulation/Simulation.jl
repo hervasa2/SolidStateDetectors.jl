@@ -1049,7 +1049,7 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
             minimum_applied_potential = minimum(broadcast(c -> c.potential, sim.detector.contacts))
             @inbounds for i in eachindex(sim.electric_potential.data)
                 if sim.electric_potential.data[i] < minimum_applied_potential && # p-type
-                    sim.point_types.data[i] & inactive_layer_bit == 0 # exclude grid points in the inactive layer
+                    sim.point_types.data[i] & inactive_layer_bit == 0 && # exclude grid points in the inactive layer
                     sim.point_types.data[i] & bulk_bit > 0 # exclude grid points outside of the bulk
                     @warn """At least one grid point in the detector has a smaller potential value ($(sim.electric_potential.data[i]) V)
                         than the minimum applied potential ($(minimum_applied_potential) V). 
@@ -1058,7 +1058,7 @@ function _calculate_potential!( sim::Simulation{T, CS}, potential_type::UnionAll
                     break
                 end
                 if sim.electric_potential.data[i] > maximum_applied_potential && # n-type
-                    sim.point_types.data[i] & inactive_layer_bit == 0 # exclude grid points in the inactive layer
+                    sim.point_types.data[i] & inactive_layer_bit == 0 && # exclude grid points in the inactive layer
                     sim.point_types.data[i] & bulk_bit > 0 # exclude grid points outside of the bulk
                     @warn """At least one grid point in the detector has a higher potential value ($(sim.electric_potential.data[i]) V)
                         than the maximum applied potential ($(maximum_applied_potential) V). 
