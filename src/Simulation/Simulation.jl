@@ -845,14 +845,16 @@ function refine_surface!(sim::Simulation{T,CS}, max_spacing::NTuple{3,T} = (T(1e
                          update_other_fields::Bool = true) where {T <: SSDFloat, CS <: AbstractCoordinateSystem}
     
     old_grid = sim.electric_potential.grid
+    is_cyl = CS === Cylindrical
 
-    max_spacing = ntuple(d -> if length(old_grid.axes[d].ticks) != 1
-        axis_width = width(old_grid.axes[d].interval)
+    max_spacing = ntuple(i -> if length(old_grid.axes[i].ticks) != 1
+        axis_width = width(old_grid.axes[i].interval)
         min_allowed = axis_width * T(5e-5)
         max_allowed = axis_width * T(1e-1)
-        val = T(max_spacing[d])
-        if val < min_allowed || val > max_allowed
-            @warn "max_spacing[$d] = $val m is out of bounds (min_allowed = $min_allowed, max_allowed = $max_allowed)."
+        val = T(max_spacing[i])
+        # Avoid warning for phi-axis if Cylindrical
+        if !(is_cyl && i == 2) && (val < min_allowed || val > max_allowed)
+            @warn "max_spacing[$i] = $val m is out of bounds (min_allowed = $min_allowed, max_allowed = $max_allowed)."
         end
         clamp(val, min_allowed, max_allowed)
     else 
@@ -875,7 +877,6 @@ function refine_surface!(sim::Simulation{T,CS}, max_spacing::NTuple{3,T} = (T(1e
     end, 3)
 
     # Refine axes: skip phi-axis if Cylindrical
-    is_cyl = CS === Cylindrical
     new_axes = ntuple(i -> begin
         if is_cyl && i == 2
             # Keep φ-axis type but close it for interpolation
