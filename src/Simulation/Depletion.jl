@@ -204,6 +204,76 @@ function _find_depletion_voltage_candidates(ϕᵨ::AbstractArray{T, 3}, ϕᵥ::A
     minimum(Umin), maximum(Umax)
 end
 
+"""
+    adapt_to_depletion_and_bias_voltage!(sim::Simulation{T}, dep::RealQuantity, bias::RealQuantity;
+        contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
+        verbose::Bool = true,
+        kwargs...) where {T <: AbstractFloat}
+
+Adapts a [`Simulation`](@ref) in place so that it matches a target depletion voltage `dep`
+and bias voltage `bias`, **without re-solving the field**.
+
+This works by exploiting the linearity of the electric potential in both the impurity density
+and the applied bias. The impurity density model is rescaled by `f = dep / dep_sim`, where `dep_sim`
+is the current depletion voltage estimated via [`estimate_depletion_voltage`](@ref), and the bias
+contact potential is swapped to `bias`. The stored `sim.electric_potential` is updated accordingly via
+superposition with the [`WeightingPotential`](@ref) of the bias contact, so no new field calculation
+is performed.
+
+`dep` and `bias` must share the same (non-zero) sign, and `bias` must exceed `dep` in magnitude
+(the detector must be over-depleted at the operating voltage).
+
+## Arguments
+* `sim::Simulation{T}`: [`Simulation`](@ref) to be adapted in place.
+* `dep::RealQuantity`: Target depletion voltage. If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
+* `bias::RealQuantity`: Target operating (bias) voltage. If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
+
+## Keywords
+* `contact_id::Int`: The `id` of the [`Contact`](@ref) at which the bias voltage is applied.
+    The default is determined automatically via `determine_bias_voltage_contact_id(sim.detector)`.
+* `verbose::Bool = true`: Activate or deactivate additional info output. Default is `true`.
+
+Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
+
+## Example
+```julia
+using SolidStateDetectors
+sim = Simulation(SSD_examples[:InvertedCoax])
+calculate_electric_potential!(sim)
+adapt_to_depletion_and_bias_voltage!(sim, 1000u"V", 1500u"V")
+```
+
+!!! note
+    The accuracy of the result depends on the precision of the initial simulation, since the
+    impurity density is rescaled rather than re-solved.
+
+See also [`estimate_depletion_voltage`](@ref).
+"""
+function adapt_to_depletion_and_bias_voltage!(sim::Simulation{T}, dep::RealQuantity, bias::RealQuantity;
+    contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
+    verbose::Bool = true,
+    kwargs...) where {T <: AbstractFloat}
+    if ismissing(sim.weighting_potentials[contact_id]) || sim.weighting_potentials[contact_id].grid != sim.electric_potential.grid
+        _adapt_weighting_potential_to_electric_potential_grid!(sim, contact_id)
+    end
+    dep::T = _parse_value(T, dep, internal_voltage_unit)
+    bias::T = _parse_value(T, bias, internal_voltage_unit)
+    @assert dep * bias > 0 "The depletion voltage ($(dep)$(internal_voltage_unit)) and operating voltage ($(bias)$(internal_voltage_unit)) must have the same (non-zero) sign."
+    @assert abs(bias) > abs(dep) "The operating voltage ($(bias)$(internal_voltage_unit)) must exceed the depletion voltage ($(dep)$(internal_voltage_unit)) in magnitude (the detector must be over-depleted)."
+    dep_sim = _parse_value(T, estimate_depletion_voltage(sim; contact_id = contact_id, verbose = verbose, kwargs...), internal_voltage_unit)
+    f = T(dep/dep_sim)
+    if verbose
+        @info """Adapting `sim.electric_potential`, 
+        scaling `impurity_density_model` by $f, 
+        and swapping in the contact potential on `sim.detector.contacts[$contact_id]` 
+        such that the simulation matches the given depletion and bias voltages."""
+    end
+    ϕV = sim.weighting_potentials[contact_id].data   
+    sim.electric_potential.data .= f * sim.electric_potential.data .+ (bias - f * sim.detector.contacts[contact_id].potential) .* ϕV
+    sim.detector = SolidStateDetector(sim.detector, contact_id = contact_id, contact_potential = bias)
+    sim.detector = SolidStateDetector(sim.detector, f*sim.detector.semiconductor.impurity_density_model)
+    nothing
+end
 #=
 """
     old_estimate_depletion_voltage( sim::Simulation{T}, contact_id::Int, field_sim_settings = (verbose = true,))::T
