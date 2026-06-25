@@ -135,9 +135,9 @@ function estimate_depletion_voltage(sim::Simulation{T},
     U = U > 0 ? max(U, U2) : min(U, U2)
     if verbose
         @info "The depletion voltage is around $(round(U, digits = Int(ceil(-log10(tol))))) ± $(tol) $(internal_voltage_unit) applied to contact $(contact_id)."
-        if (potential_range[2] - U) < tol || (U - potential_range[1]) < tol
-            @warn "The depletion voltage is probably not in the specified range $(potential_range.*internal_voltage_unit)."
-        end
+    end
+    if (potential_range[2] - U) < tol || (U - potential_range[1]) < tol
+        throw(ArgumentError("The depletion voltage ($(U * internal_voltage_unit)) is outside or too close to the edge of the search range $(potential_range .* internal_voltage_unit). Widen the range via `Umin`/`Umax`."))
     end
     return U * internal_voltage_unit
 end
@@ -204,76 +204,166 @@ function _find_depletion_voltage_candidates(ϕᵨ::AbstractArray{T, 3}, ϕᵥ::A
     minimum(Umin), maximum(Umax)
 end
 
+# Re-relax the electric potential to convergence after an analytical superposition and restore the
+# point-type markings (bulk / undepleted / inactive-layer) that `update_till_convergence!` does not set.
+function _reconverge_after_superpose(sim::Simulation; verbose::Bool = true)
+    update_till_convergence!(sim, ElectricPotential; verbose)
+    mark_bulk_bits!(sim.point_types.data)
+    if has_depletion_handling(sim.point_types)
+        mark_undep_bits!(sim.point_types.data, sim.imp_scale.data)
+        if isdefined(sim.detector.semiconductor.impurity_density_model, :surface_imp_model)
+            mark_inactivelayer_bits!(sim.point_types.data)
+        end
+    end
+    nothing
+end
+
 """
-    adapt_to_depletion_and_bias_voltage!(sim::Simulation{T}, dep::RealQuantity, bias::RealQuantity;
+    superpose_electric_potential_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
+        U_min::RealQuantity = minimum(broadcast(c -> c.potential, sim.detector.contacts)),
+        U_max::RealQuantity = maximum(broadcast(c -> c.potential, sim.detector.contacts));
         contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
         verbose::Bool = true,
+        reconverge_after_superpose::Bool = true,
         kwargs...) where {T <: AbstractFloat}
 
-Adapts a [`Simulation`](@ref) in place so that it matches a target depletion voltage `dep`
-and bias voltage `bias`, **without re-solving the field**.
+Rescales the impurity density of a [`Simulation`](@ref) in place so that its depletion voltage
+matches the target `dep`, **without a full field re-solve** and **without changing the bias**.
 
-This works by exploiting the linearity of the electric potential in both the impurity density
-and the applied bias. The impurity density model is rescaled by `f = dep / dep_sim`, where `dep_sim`
-is the current depletion voltage estimated via [`estimate_depletion_voltage`](@ref), and the bias
-contact potential is swapped to `bias`. The stored `sim.electric_potential` is updated accordingly via
-superposition with the [`WeightingPotential`](@ref) of the bias contact, so no new field calculation
-is performed.
+The `impurity_density_model` is scaled by `f = dep / dep_sim`, where `dep_sim` is the current
+depletion voltage estimated via [`estimate_depletion_voltage`](@ref). Since the electric potential
+is linear in the impurity density, the stored `sim.electric_potential` is updated by scaling its
+impurity contribution by `f` (the bias contribution, given by the [`WeightingPotential`](@ref) of
+the bias contact, is left unchanged).
 
-`dep` and `bias` must share the same (non-zero) sign, and `bias` must exceed `dep` in magnitude
-(the detector must be over-depleted at the operating voltage).
+!!! note
+    The [`WeightingPotential`](@ref) of the bias contact (`contact_id`) may be modified by this
+    function: if it is missing or does not share the grid of the [`ElectricPotential`](@ref), it
+    is calculated/adapted onto that grid.
+
+The target `dep` must share the same (non-zero) sign as the current bias voltage and be smaller
+in magnitude (i.e. the current bias over-depletes the detector at the target depletion voltage),
+otherwise an `ArgumentError` is thrown.
 
 ## Arguments
 * `sim::Simulation{T}`: [`Simulation`](@ref) to be adapted in place.
 * `dep::RealQuantity`: Target depletion voltage. If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
-* `bias::RealQuantity`: Target operating (bias) voltage. If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
+* `U_min::RealQuantity`, `U_max::RealQuantity`: Search range forwarded to [`estimate_depletion_voltage`](@ref)
+    when determining the current depletion voltage `dep_sim`. Defaults to the extrema of the contact potentials.
 
 ## Keywords
 * `contact_id::Int`: The `id` of the [`Contact`](@ref) at which the bias voltage is applied.
     The default is determined automatically via `determine_bias_voltage_contact_id(sim.detector)`.
 * `verbose::Bool = true`: Activate or deactivate additional info output. Default is `true`.
+* `reconverge_after_superpose::Bool = true`: If `true` (default), the [`ElectricPotential`](@ref) is
+    relaxed to convergence via `update_till_convergence!` after the analytical superposition (using the
+    superposed field as the initial state).
+    Set to `false` to keep the purely analytical superposition result.
 
 Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
 
-## Example
-```julia
-using SolidStateDetectors
-sim = Simulation(SSD_examples[:InvertedCoax])
-calculate_electric_potential!(sim)
-adapt_to_depletion_and_bias_voltage!(sim, 1000u"V", 1500u"V")
-```
-
-!!! note
-    The accuracy of the result depends on the precision of the initial simulation, since the
-    impurity density is rescaled rather than re-solved.
-
-See also [`estimate_depletion_voltage`](@ref).
+See also [`superpose_electric_potential_to_match_bias!`](@ref).
 """
-function adapt_to_depletion_and_bias_voltage!(sim::Simulation{T}, dep::RealQuantity, bias::RealQuantity;
+function superpose_electric_potential_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
+    U_min::RealQuantity = minimum(broadcast(c -> c.potential, sim.detector.contacts)),
+    U_max::RealQuantity = maximum(broadcast(c -> c.potential, sim.detector.contacts));
     contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
     verbose::Bool = true,
+    reconverge_after_superpose::Bool = true,
     kwargs...) where {T <: AbstractFloat}
+
+    dep::T = _parse_value(T, dep, internal_voltage_unit)
+    V = sim.detector.contacts[contact_id].potential
+    dep * V <= 0 && throw(ArgumentError("The depletion voltage ($(dep)$(internal_voltage_unit)) and operating voltage ($(V)$(internal_voltage_unit)) must have the same (non-zero) sign."))
+    abs(V) <= abs(dep) && throw(ArgumentError("The operating voltage ($(V)$(internal_voltage_unit)) must exceed the depletion voltage ($(dep)$(internal_voltage_unit)) in magnitude. The detector must be over-depleted to superpose the contributions of the bias voltage and impurity density to the electric potential."))
+
     if ismissing(sim.weighting_potentials[contact_id]) || sim.weighting_potentials[contact_id].grid != sim.electric_potential.grid
         _adapt_weighting_potential_to_electric_potential_grid!(sim, contact_id)
     end
-    dep::T = _parse_value(T, dep, internal_voltage_unit)
-    bias::T = _parse_value(T, bias, internal_voltage_unit)
-    @assert dep * bias > 0 "The depletion voltage ($(dep)$(internal_voltage_unit)) and operating voltage ($(bias)$(internal_voltage_unit)) must have the same (non-zero) sign."
-    @assert abs(bias) > abs(dep) "The operating voltage ($(bias)$(internal_voltage_unit)) must exceed the depletion voltage ($(dep)$(internal_voltage_unit)) in magnitude (the detector must be over-depleted)."
-    dep_sim = _parse_value(T, estimate_depletion_voltage(sim; contact_id = contact_id, verbose = verbose, kwargs...), internal_voltage_unit)
-    f = T(dep/dep_sim)
+    dep_sim = _parse_value(T, estimate_depletion_voltage(sim, U_min, U_max; contact_id, verbose, kwargs...), internal_voltage_unit)
+    f = T(dep / dep_sim)
     if verbose
-        @info """Adapting `sim.electric_potential`, 
-        scaling `impurity_density_model` by $f, 
-        and swapping in the contact potential on `sim.detector.contacts[$contact_id]` 
-        such that the simulation matches the given depletion and bias voltages."""
+        @info "Scaling `impurity_density_model` by $f so that the depletion voltage matches $(dep)$(internal_voltage_unit)."
     end
-    ϕV = sim.weighting_potentials[contact_id].data   
-    sim.electric_potential.data .= f * sim.electric_potential.data .+ (bias - f * sim.detector.contacts[contact_id].potential) .* ϕV
-    sim.detector = SolidStateDetector(sim.detector, contact_id = contact_id, contact_potential = bias)
-    sim.detector = SolidStateDetector(sim.detector, f*sim.detector.semiconductor.impurity_density_model)
+    ϕV = sim.weighting_potentials[contact_id].data
+    # ϕ = f·ϕρ + V·ϕV = f·(ϕ - V·ϕV) + V·ϕV = f·ϕ + V·(1 - f)·ϕV
+    sim.electric_potential.data .= f .* sim.electric_potential.data .+ (V * (1 - f)) .* ϕV
+    sim.detector = SolidStateDetector(sim.detector, f * sim.detector.semiconductor.impurity_density_model)
+    reconverge_after_superpose && _reconverge_after_superpose(sim; verbose)
     nothing
 end
+
+"""
+    superpose_electric_potential_to_match_bias!(sim::Simulation{T}, bias::RealQuantity;
+        contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
+        verbose::Bool = true,
+        check_against_depletion_voltage::Bool = true,
+        reconverge_after_superpose::Bool = true,
+        kwargs...) where {T <: AbstractFloat}
+
+Swaps the bias contact potential of a [`Simulation`](@ref) to `bias` in place, **without re-solving
+the electric potential** and **without changing the impurity density**.
+
+Since the electric potential is linear in the applied bias, the stored `sim.electric_potential` is
+modified by adding `(bias - V_old) · ϕV`, where `V_old` is the current contact potential and `ϕV` is
+the [`WeightingPotential`](@ref) of the bias contact.
+
+!!! note
+    The [`WeightingPotential`](@ref) of the bias contact (`contact_id`) may be modified by this
+    function: if it is missing or does not share the grid of the [`ElectricPotential`](@ref), it
+    is calculated/adapted onto that grid.
+
+## Arguments
+* `sim::Simulation{T}`: [`Simulation`](@ref) to be adapted in place.
+* `bias::RealQuantity`: Target bias voltage. If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
+
+## Keywords
+* `contact_id::Int`: The `id` of the [`Contact`](@ref) at which the bias voltage is applied.
+    The default is determined automatically via `determine_bias_voltage_contact_id(sim.detector)`.
+* `verbose::Bool = true`: Activate or deactivate additional info output. Default is `true`.
+* `check_against_depletion_voltage::Bool = true`: If `true`, the depletion voltage is estimated via
+    [`estimate_depletion_voltage`](@ref) and an `ArgumentError` is thrown unless `bias` shares its
+    (non-zero) sign and exceeds it in magnitude (i.e. the detector is fully depleted at `bias`). Set
+    to `false` to skip this check, e.g. when the depletion voltage has just been set via
+    [`superpose_electric_potential_to_match_depletion!`](@ref).
+* `reconverge_after_superpose::Bool = true`: If `true` (default), the [`ElectricPotential`](@ref) is
+    relaxed to convergence via `update_till_convergence!` after the analytical superposition (using the
+    superposed field as the initial state).
+    Set to `false` to keep the purely analytical superposition result.
+
+Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
+
+See also [`superpose_electric_potential_to_match_depletion!`](@ref).
+"""
+function superpose_electric_potential_to_match_bias!(sim::Simulation{T}, bias::RealQuantity;
+    contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
+    verbose::Bool = true,
+    check_against_depletion_voltage::Bool = true,
+    reconverge_after_superpose::Bool = true,
+    kwargs...) where {T <: AbstractFloat}
+
+    V = sim.detector.contacts[contact_id].potential
+    bias = _parse_value(T, bias, internal_voltage_unit)
+    if check_against_depletion_voltage 
+        dep = _parse_value(T, estimate_depletion_voltage(sim; contact_id, verbose, kwargs...), internal_voltage_unit) 
+        dep * bias <= 0 && throw(ArgumentError("The depletion voltage ($(dep)$(internal_voltage_unit)) and operating voltage ($(bias)$(internal_voltage_unit)) must have the same (non-zero) sign."))
+        abs(bias) <= abs(dep) && throw(ArgumentError("The operating voltage ($(bias)$(internal_voltage_unit)) must exceed the depletion voltage ($(dep)$(internal_voltage_unit)) in magnitude. The detector must be over-depleted to superpose the contributions of the bias voltage and impurity density to the electric potential."))
+    end
+
+    if ismissing(sim.weighting_potentials[contact_id]) || sim.weighting_potentials[contact_id].grid != sim.electric_potential.grid
+        _adapt_weighting_potential_to_electric_potential_grid!(sim, contact_id)
+    end
+    V = sim.detector.contacts[contact_id].potential
+    if verbose
+        @info "Shifting the bias on `sim.detector.contacts[$contact_id]` from $(V)$(internal_voltage_unit) to $(bias)$(internal_voltage_unit)."
+    end
+    ϕV = sim.weighting_potentials[contact_id].data
+    sim.electric_potential.data .+= (bias - V) .* ϕV
+    sim.detector = SolidStateDetector(sim.detector, contact_id = contact_id, contact_potential = bias)
+    reconverge_after_superpose && _reconverge_after_superpose(sim; verbose)
+    nothing
+end
+
 #=
 """
     old_estimate_depletion_voltage( sim::Simulation{T}, contact_id::Int, field_sim_settings = (verbose = true,))::T
