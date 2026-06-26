@@ -640,6 +640,20 @@ function update_till_convergence!( sim::Simulation{T,CS},
     cf
 end
 
+# Re-relax the electric potential to convergence after an analytical superposition and restore the
+# point-type markings (bulk / undepleted / inactive-layer) that `update_till_convergence!` does not set.
+function _update_electric_potential_till_convergence_and_mark_bits!(sim::Simulation; kwargs...)
+    update_till_convergence!(sim, ElectricPotential; kwargs...)
+    mark_bulk_bits!(sim.point_types.data)
+    if has_depletion_handling(sim.point_types)
+        mark_undep_bits!(sim.point_types.data, sim.imp_scale.data)
+        if isdefined(sim.detector.semiconductor.impurity_density_model, :surface_imp_model)
+            mark_inactivelayer_bits!(sim.point_types.data)
+        end
+    end
+    nothing
+end
+
 """
     update_till_convergence!( sim::Simulation{T} ::Type{WeightingPotential}, contact_id::Int, convergence_limit::Real; kwargs...)::T
 
