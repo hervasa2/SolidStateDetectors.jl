@@ -640,10 +640,24 @@ function update_till_convergence!( sim::Simulation{T,CS},
     cf
 end
 
-# Re-relax the electric potential to convergence after an analytical superposition and restore the
-# point-type markings (bulk / undepleted / inactive-layer) that `update_till_convergence!` does not set.
-function _update_electric_potential_till_convergence_and_mark_bits!(sim::Simulation; kwargs...)
-    update_till_convergence!(sim, ElectricPotential; kwargs...)
+
+# """
+#     mark_bits!(sim::Simulation)
+#
+# Re-derive the geometric/physical bit flags of `sim.point_types` from the current state of `sim`.
+#
+# `update_till_convergence!(sim, ElectricPotential)` relaxes the potential values but does not refresh
+# these flags, so this helper restores them after an in-place potential update. It sets:
+# * the bulk bits (via `mark_bulk_bits!`), always; and, only when the `point_types` carry depletion
+#   handling (`has_depletion_handling(sim.point_types)`),
+# * the undepleted bits (via `mark_undep_bits!`, from `sim.imp_scale`), and
+# * the inactive-layer bits (via `mark_inactivelayer_bits!`), if the impurity density model defines a
+#   `surface_imp_model`.
+#
+# ## Arguments
+# * `sim::Simulation{T}`: [`Simulation`](@ref) whose `point_types` flags are updated in place.
+# """
+function mark_bits!(sim::Simulation)
     mark_bulk_bits!(sim.point_types.data)
     if has_depletion_handling(sim.point_types)
         mark_undep_bits!(sim.point_types.data, sim.imp_scale.data)

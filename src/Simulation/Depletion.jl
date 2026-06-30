@@ -39,7 +39,8 @@ end
         Umax::RealQuantity = maximum(broadcast(c -> c.potential, sim.detector.contacts));
         contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
         tolerance::RealQuantity = 0.1u"V",
-        verbose::Bool = true) where {T <: AbstractFloat}
+        verbose::Bool = true,
+        check_for_depletion::Bool = true) where {T <: AbstractFloat}
 
 Estimates the potential needed to fully deplete the detector in a given [`Simulation`](@ref)
 at the [`Contact`](@ref) with id `contact_id` by bisection method.
@@ -55,6 +56,9 @@ The default searching range of potentials is set by the extrema of contact poten
 * `contact_id::Int`: The `id` of the [`Contact`](@ref) at which the potential is applied.
 * `tolerance::Real`: The acceptable accuracy of results (default = 0.1V). If no units are given, this value is parsed in units of `$(internal_voltage_unit)`.
 * `verbose::Bool = true`: Activate or deactivate additional info output. Default is `true`.
+* `check_for_depletion::Bool = true`: If `true` (default), assert via [`is_depleted`](@ref) that the
+    simulation is fully depleted before estimating, since the method is only valid for a depleted detector.
+    Set to `false` to skip this assertion.
 
 ## Example
 ```julia
@@ -80,7 +84,7 @@ function estimate_depletion_voltage(sim::Simulation{T},
     contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
     tolerance::RealQuantity = 0.1u"V",
     verbose::Bool = true,
-    check_for_depletion = true) where {T <: AbstractFloat}
+    check_for_depletion::Bool = true) where {T <: AbstractFloat}
 
     Umin::T = _parse_value(T, U_min, internal_voltage_unit) 
     Umax::T = _parse_value(T, U_max, internal_voltage_unit)
@@ -214,18 +218,27 @@ end
         kwargs...) where {T <: AbstractFloat}
 
 Rescales the impurity density of a [`Simulation`](@ref) in place so that its depletion voltage
-matches the target `dep`, **without a full field re-solve** and **without changing the bias**.
+matches the target `dep`, **without a full electric potential re-solve** and **without changing the bias**.
 
 The `impurity_density_model` is scaled by `f = dep / dep_sim`, where `dep_sim` is the current
 depletion voltage estimated via [`estimate_depletion_voltage`](@ref). Since the electric potential
 is linear in the impurity density, the stored `sim.electric_potential` is updated by scaling its
 impurity contribution by `f` (the bias contribution, given by the [`WeightingPotential`](@ref) of
-the bias contact, is left unchanged).
+the bias contact, is left unchanged). With the bias voltage `V` held fixed, the stored potential is
+updated as
+
+`ϕ → f·ϕ + (1 - f)·V·ϕV`,    where    `f = dep / dep_sim`
+
+and `ϕV` is the weighting potential of the bias contact.
 
 !!! note
     The [`WeightingPotential`](@ref) of the bias contact (`contact_id`) may be modified by this
     function: if it is missing or does not share the grid of the [`ElectricPotential`](@ref), it
-    is calculated/adapted onto that grid.
+    is calculated/mapped onto that grid.
+
+!!! note
+    This modifies `sim.electric_potential`. If `sim.electric_field` has already been calculated, it
+    must be recomputed via [`calculate_electric_field!`](@ref) to reflect the change.
 
 The target `dep` must share the same (non-zero) sign as the current bias voltage and be smaller
 in magnitude (i.e. the current bias over-depletes the detector at the target depletion voltage),
@@ -247,6 +260,11 @@ otherwise an `ArgumentError` is thrown.
     Set to `false` to keep the purely analytical superposition result.
 
 Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
+
+!!! note
+    When `reconverge_electric_potential = true` (the default), the field is re-relaxed by the SOR
+    solver, so a subsequent call to [`estimate_depletion_voltage`](@ref) may return a value slightly
+    different (usually a few volts) from the target `dep`. Set it to `false` for the exact analytical match.
 
 Returns the impurity scaling factor `f = dep / dep_sim` that was applied.
 
@@ -277,7 +295,10 @@ function scale_electric_potential_impurity_to_match_depletion!(sim::Simulation{T
     # ϕ = f·ϕρ + V·ϕV = f·(ϕ - V·ϕV) + V·ϕV = f·ϕ + V·(1 - f)·ϕV
     sim.electric_potential.data .= f .* sim.electric_potential.data .+ (V * (1 - f)) .* ϕV
     sim.detector = SolidStateDetector(sim.detector, f * sim.detector.semiconductor.impurity_density_model)
-    reconverge_electric_potential && _update_electric_potential_till_convergence_and_mark_bits!(sim; verbose)
+    if reconverge_electric_potential
+        update_till_convergence!(sim, ElectricPotential; verbose)
+        mark_bits!(sim)
+    end
     f
 end
 
@@ -289,17 +310,24 @@ end
         reconverge_electric_potential::Bool = true,
         kwargs...) where {T <: AbstractFloat}
 
-Swaps the bias contact potential of a [`Simulation`](@ref) to `bias` in place, **without re-solving
-the electric potential** and **without changing the impurity density**.
+Swaps the bias contact potential of a [`Simulation`](@ref) to `bias` in place, 
+**without a full electric potential re-solve** and **without changing the impurity density**.
 
-Since the electric potential is linear in the applied bias, the stored `sim.electric_potential` is
-modified by adding `(bias - V_old) · ϕV`, where `V_old` is the current contact potential and `ϕV` is
-the [`WeightingPotential`](@ref) of the bias contact.
+Since the electric potential is linear in the applied bias, the stored potential is updated as
+
+`ϕ → ϕ + (bias - V_old)·ϕV`
+
+where `V_old` is the current contact potential and `ϕV` is the [`WeightingPotential`](@ref) of the
+bias contact.
 
 !!! note
     The [`WeightingPotential`](@ref) of the bias contact (`contact_id`) may be modified by this
     function: if it is missing or does not share the grid of the [`ElectricPotential`](@ref), it
-    is calculated/adapted onto that grid.
+    is calculated/mapped onto that grid.
+
+!!! note
+    This modifies `sim.electric_potential`. If `sim.electric_field` has already been calculated, it
+    must be recomputed via [`calculate_electric_field!`](@ref) to reflect the change.
 
 ## Arguments
 * `sim::Simulation{T}`: [`Simulation`](@ref) to be adapted in place.
@@ -348,7 +376,10 @@ function shift_electric_potential_to_match_bias!(sim::Simulation{T}, bias::RealQ
     ϕV = sim.weighting_potentials[contact_id].data
     sim.electric_potential.data .+= (bias - V) .* ϕV
     sim.detector = SolidStateDetector(sim.detector, contact_id = contact_id, contact_potential = bias)
-    reconverge_electric_potential && _update_electric_potential_till_convergence_and_mark_bits!(sim; verbose)
+    if reconverge_electric_potential
+        update_till_convergence!(sim, ElectricPotential; verbose)
+        mark_bits!(sim)
+    end
     nothing
 end
 
