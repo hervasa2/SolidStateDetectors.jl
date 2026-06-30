@@ -299,6 +299,10 @@ function adjust_impurity_and_electric_potential_to_match_depletion!(sim::Simulat
         update_till_convergence!(sim, ElectricPotential; verbose)
         mark_bits!(sim)
     end
+    if verbose && !ismissing(sim.electric_field)
+        @info "The impurity density was scaled to match the depletion and the electric potential was modified accordingly to reflect this change.\n" *
+              "Please run `calculate_electric_field!` to reflect this change also in the electric field."
+    end
     f
 end
 
@@ -379,6 +383,10 @@ function adjust_bias_and_electric_potential!(sim::Simulation{T}, bias::RealQuant
     if reconverge_electric_potential
         update_till_convergence!(sim, ElectricPotential; verbose)
         mark_bits!(sim)
+    end
+    if verbose && !ismissing(sim.electric_field)
+        @info "The bias voltage was adjusted and the electric potential was modified accordingly to reflect this change.\n" *
+              "Please run `calculate_electric_field!` to reflect this change also in the electric field."
     end
     nothing
 end
