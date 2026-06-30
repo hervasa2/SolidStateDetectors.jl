@@ -209,7 +209,7 @@ function _find_depletion_voltage_candidates(ϕᵨ::AbstractArray{T, 3}, ϕᵥ::A
 end
 
 """
-    scale_electric_potential_impurity_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
+    adjust_impurity_and_electric_potential_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
         U_min::RealQuantity = minimum(broadcast(c -> c.potential, sim.detector.contacts)),
         U_max::RealQuantity = maximum(broadcast(c -> c.potential, sim.detector.contacts));
         contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
@@ -268,9 +268,9 @@ Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
 
 Returns the impurity scaling factor `f = dep / dep_sim` that was applied.
 
-See also [`shift_electric_potential_to_match_bias!`](@ref).
+See also [`adjust_bias_and_electric_potential!`](@ref).
 """
-function scale_electric_potential_impurity_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
+function adjust_impurity_and_electric_potential_to_match_depletion!(sim::Simulation{T}, dep::RealQuantity,
     U_min::RealQuantity = minimum(broadcast(c -> c.potential, sim.detector.contacts)),
     U_max::RealQuantity = maximum(broadcast(c -> c.potential, sim.detector.contacts));
     contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
@@ -303,7 +303,7 @@ function scale_electric_potential_impurity_to_match_depletion!(sim::Simulation{T
 end
 
 """
-    shift_electric_potential_to_match_bias!(sim::Simulation{T}, bias::RealQuantity;
+    adjust_bias_and_electric_potential!(sim::Simulation{T}, bias::RealQuantity;
         contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
         verbose::Bool = true,
         check_against_depletion_voltage::Bool = true,
@@ -341,7 +341,7 @@ bias contact.
     [`estimate_depletion_voltage`](@ref) and an `ArgumentError` is thrown unless `bias` shares its
     (non-zero) sign and exceeds it in magnitude (i.e. the detector is fully depleted at `bias`). Set
     to `false` to skip this check, e.g. when the depletion voltage has just been set via
-    [`scale_electric_potential_impurity_to_match_depletion!`](@ref).
+    [`adjust_impurity_and_electric_potential_to_match_depletion!`](@ref).
 * `reconverge_electric_potential::Bool = true`: If `true` (default), the [`ElectricPotential`](@ref) is
     relaxed to convergence via `update_till_convergence!` after the analytical superposition (using the
     superposed field as the initial state).
@@ -349,9 +349,9 @@ bias contact.
 
 Additional `kwargs...` are passed on to [`estimate_depletion_voltage`](@ref).
 
-See also [`scale_electric_potential_impurity_to_match_depletion!`](@ref).
+See also [`adjust_impurity_and_electric_potential_to_match_depletion!`](@ref).
 """
-function shift_electric_potential_to_match_bias!(sim::Simulation{T}, bias::RealQuantity;
+function adjust_bias_and_electric_potential!(sim::Simulation{T}, bias::RealQuantity;
     contact_id::Int = determine_bias_voltage_contact_id(sim.detector),
     verbose::Bool = true,
     check_against_depletion_voltage::Bool = true,
